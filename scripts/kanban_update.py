@@ -37,6 +37,16 @@ _BASE = pathlib.Path(os.environ['EDICT_HOME']) if 'EDICT_HOME' in os.environ els
 TASKS_FILE = _BASE / 'data' / 'tasks_source.json'
 REFRESH_SCRIPT = _BASE / 'scripts' / 'refresh_live_data.py'
 
+# ── 統一派發模組 ──────────────────────────────────────────
+# 封裝統一派發邏輯，確保 kanban_update.py 與 Dashboard Server 動作一致
+sys.path.insert(0, str(_BASE / 'scripts'))
+from dispatch import dispatch_for_state
+
+# 方便 dispatch_for_state 內部讀取 task 資料
+def _reload_task(task_id):
+    tasks = atomic_json_read(TASKS_FILE)
+    return next((t for t in tasks if t.get('id') == task_id), None)
+
 log = logging.getLogger('kanban')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(name)s] %(message)s', datefmt='%H:%M:%S')
 
@@ -319,6 +329,9 @@ def cmd_create(task_id, title, state, org, official, remark=None):
         return tasks
     atomic_json_update(TASKS_FILE, modifier, [])
     _trigger_refresh()
+    task = _reload_task(task_id)
+    if task:
+        dispatch_for_state(task_id, task, state, trigger='create')
     log.info(f'✅ 创建 {task_id} | {title[:30]} | state={state}')
     _append_audit(task_id, _infer_agent_id_from_runtime(), 'create', None, state, title)
 
@@ -411,6 +424,9 @@ def cmd_state(task_id, new_state, now_text=None):
     else:
         log.info(f'✅ {task_id} 状态更新: {old_state[0]} → {new_state}')
         _append_audit(task_id, _infer_agent_id_from_runtime(), 'state', old_state[0], new_state, now_text or '')
+        task = _reload_task(task_id)
+        if task:
+            dispatch_for_state(task_id, task, new_state, 'state')
 
 
 def cmd_flow(task_id, from_dept, to_dept, remark):
@@ -484,6 +500,9 @@ def cmd_done(task_id, output_path='', summary=''):
         return
     log.info(f'✅ {task_id} 执行完成，已提交尚书省审查')
     _append_audit(task_id, _infer_agent_id_from_runtime(), 'done', None, 'Review', summary or '')
+    task = _reload_task(task_id)
+    if task:
+        dispatch_for_state(task_id, task, 'Review', 'done')
 
 
 def cmd_block(task_id, reason):

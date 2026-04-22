@@ -2111,7 +2111,11 @@ _STATE_LABELS = {
 }
 
 
+from dispatch import dispatch_for_state as _dispatch_impl
+
 def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
+    """統一派發入口（轉發至 dispatch.py 封裝的實作）。"""
+    _dispatch_impl(task_id, task, new_state, trigger)
     """推进/审批后自动派发对应 Agent（后台异步，不阻塞响应）。"""
     agent_id = _STATE_AGENT_MAP.get(new_state)
     if agent_id is None and new_state in ('Doing', 'Next'):

@@ -297,7 +297,7 @@ def _is_valid_task_title(title):
     return True, ''
 
 
-def cmd_create(task_id, title, state, org, official, remark=None):
+def cmd_create(task_id, title, state, org, official, remark=None, source=None):
     """新建任务（收旨时立即调用）"""
     # 清洗标题（剥离元数据）
     title = _sanitize_title(title)
@@ -309,6 +309,11 @@ def cmd_create(task_id, title, state, org, official, remark=None):
         return
     actual_org = STATE_ORG_MAP.get(state, org)
     clean_remark = _sanitize_remark(remark) if remark else f"下旨：{title}"
+    # 解析 source（格式：telegram:493683906 或 feishu:xxx）
+    source_info = None
+    if source:
+        parts = source.split(':', 1)
+        source_info = {"channel": parts[0], "target": parts[1] if len(parts) > 1 else None}
     def modifier(tasks):
         existing = next((t for t in tasks if t.get('id') == task_id), None)
         if existing:
@@ -318,14 +323,17 @@ def cmd_create(task_id, title, state, org, official, remark=None):
             if existing.get('state') not in (None, '', 'Inbox', 'Pending'):
                 log.warning(f'任务 {task_id} 已存在 (state={existing["state"]})，将被覆盖')
         tasks = [t for t in tasks if t.get('id') != task_id]
-        tasks.insert(0, {
+        task_entry = {
             "id": task_id, "title": title, "official": official,
             "org": actual_org, "state": state,
             "now": clean_remark[:60] if remark else f"已下旨，等待{actual_org}接旨",
             "eta": "-", "block": "无", "output": "", "ac": "",
             "flow_log": [{"at": now_iso(), "from": "皇上", "to": actual_org, "remark": clean_remark}],
             "updatedAt": now_iso()
-        })
+        }
+        if source_info:
+            task_entry["source"] = source_info
+        tasks.insert(0, task_entry)
         return tasks
     atomic_json_update(TASKS_FILE, modifier, [])
     _trigger_refresh()
@@ -976,7 +984,16 @@ if __name__ == '__main__':
     # 越权检测：推断当前 Agent 身份，校验是否有权执行该命令
     _check_permission(_infer_agent_id_from_runtime(), cmd)
     if cmd == 'create':
-        cmd_create(args[1], args[2], args[3], args[4], args[5], args[6] if len(args)>6 else None)
+        # 解析可選 --source 參數（格式：telegram:493683906 或 feishu:xxx）
+        create_source = None
+        create_pos = [args[1], args[2], args[3], args[4], args[5]]
+        for i in range(6, len(args)):
+            if args[i].startswith('--source=') and i + 1 <= len(args):
+                create_source = args[i].split('=', 1)[1]
+            elif args[i] == '--source' and i + 1 < len(args):
+                create_source = args[i + 1]
+                i += 1
+        cmd_create(*create_pos, remark=args[6] if len(args)>6 else None, source=create_source)
     elif cmd == 'state':
         cmd_state(args[1], args[2], args[3] if len(args)>3 else None)
     elif cmd == 'flow':

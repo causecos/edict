@@ -196,12 +196,17 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                 }))
                 return
 
-            # 讀取 dispatch channel 配置
+            # 讀取 dispatch channel 配置（優先使用任務來源的 channel）
             agent_cfg = {}
             cfg_path = DATA / 'agent_config.json'
             if cfg_path.exists():
                 agent_cfg = json.loads(cfg_path.read_text())
-            channel = (agent_cfg.get('dispatchChannel') or '').strip()
+            # 任務有 source channel → 優先用它；否則用全域設定
+            channel = ''
+            if task_source := task.get('source'):
+                channel = task_source.get('channel', '').strip()
+            if not channel:
+                channel = (agent_cfg.get('dispatchChannel') or '').strip()
 
             # 解析 openclaw CLI 路径
             openclaw_bin = _resolve_openclaw_bin()

@@ -1108,6 +1108,11 @@ def _resolve_openclaw_bin():
     configured = os.environ.get('OPENCLAW_BIN', '').strip()
     if configured:
         return configured
+    # 優先檢查常見路徑，避免 PATH 缺失導致找不到
+    for bin_dir in ('/home/cosmos/.npm-global/bin', '/usr/local/bin', '/usr/bin'):
+        candidate = pathlib.Path(bin_dir) / 'openclaw'
+        if candidate.exists():
+            return str(candidate)
     return shutil.which('openclaw')
 
 

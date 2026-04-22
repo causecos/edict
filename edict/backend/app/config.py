@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # ── 消息通知 ──
     notification_enabled: bool = True
-    default_dispatch_channel: str = "feishu"
+    default_dispatch_channel: str = "telegram"
 
     @property
     def database_url(self) -> str:

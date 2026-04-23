@@ -2904,7 +2904,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser(description='三省六部看板服务器')
     parser.add_argument('--port', type=int, default=7891)
-    parser.add_argument('--host', default='127.0.0.1')
+    parser.add_argument('--host', default='0.0.0.0')
     parser.add_argument('--cors', default=None, help='Allowed CORS origin (default: reflect request Origin header)')
     args = parser.parse_args()
 

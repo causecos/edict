@@ -26,6 +26,10 @@
   python3 kanban_update.py todo JJC-20260223-012 1 "实现API接口" in-progress
   python3 kanban_update.py todo JJC-20260223-012 1 "" completed
 
+  # CLI 查看任务清单（默认不显示技术 ID）
+  python3 kanban_update.py list --active
+  python3 kanban_update.py list --show-id
+
   # 🔥 实时进展汇报（Agent 主动调用，频率不限）
   python3 kanban_update.py progress JJC-20260223-012 "正在分析需求，拟定3个子方案" "1.调研技术选型|2.撰写设计文档|3.实现原型"
 """
@@ -170,17 +174,17 @@ def _append_audit(task_id, agent, action, old_val=None, new_val=None, reason="")
 
 # ── 越权检测（Agent 权限策略）──
 AGENT_POLICY = {
-    "taizi":    {"role": "coordination", "commands": {"create", "state", "flow", "progress", "todo", "memory", "task-memo"}},
-    "zhongshu": {"role": "coordination", "commands": {"state", "flow", "progress", "todo", "memory", "task-memo", "delegate"}},
-    "menxia":   {"role": "coordination", "commands": {"state", "flow", "progress", "todo", "confirm", "memory", "task-memo"}},
-    "shangshu": {"role": "coordination", "commands": {"state", "flow", "progress", "todo", "confirm", "delegate", "memory", "task-memo", "shared-memo"}},
-    "zaochao":  {"role": "coordination", "commands": {"progress", "todo", "memory"}},
-    "hubu":     {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result"}},
-    "libu":     {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result"}},
-    "bingbu":   {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result"}},
-    "xingbu":   {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result"}},
-    "gongbu":   {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result"}},
-    "libu_hr":  {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result"}},
+    "taizi":    {"role": "coordination", "commands": {"create", "state", "flow", "progress", "todo", "memory", "task-memo", "list"}},
+    "zhongshu": {"role": "coordination", "commands": {"state", "flow", "progress", "todo", "memory", "task-memo", "delegate", "list"}},
+    "menxia":   {"role": "coordination", "commands": {"state", "flow", "progress", "todo", "confirm", "memory", "task-memo", "list"}},
+    "shangshu": {"role": "coordination", "commands": {"state", "flow", "progress", "todo", "confirm", "delegate", "memory", "task-memo", "shared-memo", "list"}},
+    "zaochao":  {"role": "coordination", "commands": {"progress", "todo", "memory", "list"}},
+    "hubu":     {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result", "list"}},
+    "libu":     {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result", "list"}},
+    "bingbu":   {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result", "list"}},
+    "xingbu":   {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result", "list"}},
+    "gongbu":   {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result", "list"}},
+    "libu_hr":  {"role": "execution", "commands": {"progress", "todo", "done", "block", "memory", "task-memo", "delegate-result", "list"}},
 }
 
 def _check_permission(agent_id, cmd):
@@ -1002,6 +1006,37 @@ def complete_task(task_id, output='', summary=''):
 def block_task(task_id, reason):
     return cmd_block(task_id, reason)
 
+
+def cmd_list(state='', active_only=False, show_id=False, limit=0):
+    """列出任務清單（預設不顯示技術 ID，便於人讀）。"""
+    tasks = atomic_json_read(TASKS_FILE) or []
+
+    if state:
+        tasks = [t for t in tasks if (t.get('state') or '').lower() == state.lower()]
+    if active_only:
+        tasks = [t for t in tasks if t.get('state') not in ('Done', 'Cancelled')]
+
+    try:
+        limit = int(limit) if limit else 0
+    except Exception:
+        limit = 0
+    if limit > 0:
+        tasks = tasks[:limit]
+
+    if not tasks:
+        print('目前沒有符合條件的任務')
+        return
+
+    print(f'任務清單（共 {len(tasks)} 筆）')
+    for i, t in enumerate(tasks, 1):
+        title = (t.get('title') or '（無標題）').strip()
+        state_txt = t.get('state') or '-'
+        org_txt = t.get('org') or '-'
+        if show_id:
+            print(f"{i}. {title}｜{state_txt}｜{org_txt}｜{t.get('id','-')}")
+        else:
+            print(f"{i}. {title}｜{state_txt}｜{org_txt}")
+
 _CMD_MIN_ARGS = {
     'create': 6, 'state': 3, 'flow': 5, 'done': 2, 'block': 3, 'confirm': 3,
     'todo': 4, 'progress': 3,
@@ -1095,6 +1130,20 @@ if __name__ == '__main__':
                      args[5] if len(args) > 5 else '')
     elif cmd == 'delegate-result':
         cmd_delegate_result(args[1], args[2])
+    elif cmd == 'list':
+        show_id = '--show-id' in args
+        active_only = '--active' in args
+        state = ''
+        limit = 0
+        i = 1
+        while i < len(args):
+            if args[i] == '--state' and i + 1 < len(args):
+                state = args[i + 1]; i += 2
+            elif args[i] == '--limit' and i + 1 < len(args):
+                limit = args[i + 1]; i += 2
+            else:
+                i += 1
+        cmd_list(state=state, active_only=active_only, show_id=show_id, limit=limit)
     else:
         print(__doc__)
         sys.exit(1)

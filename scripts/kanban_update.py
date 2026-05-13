@@ -26,9 +26,11 @@
   python3 kanban_update.py todo JJC-20260223-012 1 "实现API接口" in-progress
   python3 kanban_update.py todo JJC-20260223-012 1 "" completed
 
-  # CLI 查看任务清单（默认不显示技术 ID）
+  # CLI 查看任务清单（默认含「進度」內容，避免只看狀態）
   python3 kanban_update.py list --active
-  python3 kanban_update.py list --show-id
+  python3 kanban_update.py list --active --full
+  python3 kanban_update.py list --show-id      # 需要時才顯示技術 ID
+  python3 kanban_update.py list --brief        # 只看標題/狀態/部門
 
   # 🔥 实时进展汇报（Agent 主动调用，频率不限）
   python3 kanban_update.py progress JJC-20260223-012 "正在分析需求，拟定3个子方案" "1.调研技术选型|2.撰写设计文档|3.实现原型"
@@ -1007,8 +1009,24 @@ def block_task(task_id, reason):
     return cmd_block(task_id, reason)
 
 
-def cmd_list(state='', active_only=False, show_id=False, limit=0):
-    """列出任務清單（預設不顯示技術 ID，便於人讀）。"""
+def _short_text(value, max_len=42):
+    s = (value or '').strip()
+    if len(s) <= max_len:
+        return s
+    return s[:max_len] + '…'
+
+
+def _todo_brief(task):
+    todos = task.get('todos') or []
+    if not todos:
+        return '無'
+    total = len(todos)
+    done = sum(1 for td in todos if td.get('status') == 'completed')
+    return f'{done}/{total} 完成'
+
+
+def cmd_list(state='', active_only=False, show_id=False, limit=0, brief=False, full=False):
+    """列出任務清單（預設顯示可讀內容，避免只見技術 ID）。"""
     tasks = atomic_json_read(TASKS_FILE) or []
 
     if state:
@@ -1032,10 +1050,28 @@ def cmd_list(state='', active_only=False, show_id=False, limit=0):
         title = (t.get('title') or '（無標題）').strip()
         state_txt = t.get('state') or '-'
         org_txt = t.get('org') or '-'
+        head = f"{i}. {title}｜{state_txt}｜{org_txt}"
         if show_id:
-            print(f"{i}. {title}｜{state_txt}｜{org_txt}｜{t.get('id','-')}")
-        else:
-            print(f"{i}. {title}｜{state_txt}｜{org_txt}")
+            head += f"｜{t.get('id','-')}"
+        print(head)
+
+        if brief:
+            continue
+
+        now_txt = _short_text(t.get('now') or '（無進度描述）', 60)
+        print(f"   進度：{now_txt}")
+
+        if full:
+            desc = _short_text(t.get('description') or t.get('ac') or '（無需求描述）', 100)
+            print(f"   內容：{desc}")
+            print(f"   子任務：{_todo_brief(t)}")
+            flow_log = t.get('flow_log') or []
+            if flow_log:
+                last = flow_log[-1]
+                f_from = last.get('from') or '-'
+                f_to = last.get('to') or '-'
+                f_reason = _short_text(last.get('reason') or last.get('remark') or '', 50)
+                print(f"   最近流轉：{f_from} → {f_to}（{f_reason or '無'}）")
 
 _CMD_MIN_ARGS = {
     'create': 6, 'state': 3, 'flow': 5, 'done': 2, 'block': 3, 'confirm': 3,
@@ -1133,6 +1169,8 @@ if __name__ == '__main__':
     elif cmd == 'list':
         show_id = '--show-id' in args
         active_only = '--active' in args
+        brief = '--brief' in args
+        full = '--full' in args
         state = ''
         limit = 0
         i = 1
@@ -1143,7 +1181,7 @@ if __name__ == '__main__':
                 limit = args[i + 1]; i += 2
             else:
                 i += 1
-        cmd_list(state=state, active_only=active_only, show_id=show_id, limit=limit)
+        cmd_list(state=state, active_only=active_only, show_id=show_id, limit=limit, brief=brief, full=full)
     else:
         print(__doc__)
         sys.exit(1)

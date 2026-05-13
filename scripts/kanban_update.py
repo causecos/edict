@@ -33,11 +33,7 @@
   python3 kanban_update.py list --brief        # 只看標題/狀態/部門
   python3 kanban_update.py list --include-session  # 顯示會話映射項
 
-  # TG 固定指令（推薦，不靠語意關鍵字）
-  python3 kanban_update.py tg.tasks.full
-  python3 kanban_update.py tg.tasks.active.full
-
-  # TG/中文別名（可用，但不建議作為唯一入口）
+  # 中文別名
   python3 kanban_update.py 任務清單 完整
   python3 kanban_update.py 任務清單 進行中 完整
 
@@ -1140,21 +1136,10 @@ if __name__ == '__main__':
         print(__doc__)
         sys.exit(0)
 
-    # 固定命令碼（不依賴語意）：tg.tasks.*
-    # 例：tg.tasks.full / tg.tasks.active.full
+    # 中文命令別名：任務清單 [完整|簡略|進行中]
     raw_cmd = args[0]
     cmd = raw_cmd
-    preset_tokens = []
-    if raw_cmd == 'tg.tasks.full':
-        cmd = 'list'; preset_tokens = ['完整']
-    elif raw_cmd == 'tg.tasks.active.full':
-        cmd = 'list'; preset_tokens = ['進行中', '完整']
-    elif raw_cmd == 'tg.tasks.brief':
-        cmd = 'list'; preset_tokens = ['簡略']
-    elif raw_cmd == 'tg.tasks.active.brief':
-        cmd = 'list'; preset_tokens = ['進行中', '簡略']
-    # TG/中文命令別名：任務清單 [完整|簡略|進行中]
-    elif raw_cmd in ('任務清單', '任务清单'):
+    if raw_cmd in ('任務清單', '任务清单'):
         cmd = 'list'
 
     if cmd in _CMD_MIN_ARGS and len(args) < _CMD_MIN_ARGS[cmd]:
@@ -1246,9 +1231,8 @@ if __name__ == '__main__':
         state = ''
         limit = 0
 
-        # 支援固定命令碼 + TG/中文參數詞
-        token_stream = list(preset_tokens) + args[1:]
-        for tok in token_stream:
+        # 支援 TG/中文參數詞
+        for tok in args[1:]:
             t = str(tok).strip().lower()
             if t in ('完整', '完整版', 'full'):
                 full = True

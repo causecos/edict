@@ -35,6 +35,21 @@
 
 ---
 
+## 🆕 近期更新（2026-05）
+
+- **任務資料源改為 DB-first**：Dashboard `live-status` 支援 `db/json/auto` 模式切換，預設建議 `db`。
+- **模式切換 CLI**：新增 `scripts/task_source_mode.py`，可查詢/切換資料源模式與後端健康狀態。
+- **流程一致性強化**：主路徑以 **Event Bus** 為準，CLI 僅作故障排查與補救。
+- **穩定性修復**：已完成相容層與同步路徑修復，當前測試結果為 **49 passed**。
+
+```bash
+# 查看目前資料源模式
+python3 scripts/task_source_mode.py get
+
+# 切換到 DB 模式
+python3 scripts/task_source_mode.py set db
+```
+
 ## 🎬 Demo
 
 <p align="center">

@@ -310,15 +310,13 @@ def main():
         if existing_tasks_file.exists():
             try:
                 existing = json.loads(existing_tasks_file.read_text())
-                # 保留所有非 OC 來源的任務（包括 JJC-*, JJX-*, OC-*, 自建任務等）
-                # 防止同步時覆蓋掉手動創建的任務
-                preserved = [t for t in existing if not str(t.get('id', '')).startswith('OC-')]
-
-                # 去除重複（以 id 為準，OC 任務優先）
-                existing_ids = {t['id'] for t in tasks if t.get('id')}
-                tasks = [t for t in preserved if t.get('id') not in existing_ids] + tasks
+                jjc_existing = [t for t in existing if str(t.get('id', '')).startswith('JJC')]
+                
+                # 去掉 tasks 裏已有的 JJC（以防重複），再把旨意放到最前面
+                tasks = [t for t in tasks if not str(t.get('id', '')).startswith('JJC')]
+                tasks = jjc_existing + tasks
             except Exception as e:
-                log.error(f'merge existing non-OC tasks failed: {e}')
+                log.error(f'merge existing JJC tasks failed: {e}')
                 pass
 
         atomic_json_write(DATA / 'tasks_source.json', tasks)

@@ -1,14 +1,14 @@
-"""Dispatch Worker — 消费 task.dispatch 事件，执行 OpenClaw agent 调用。
+"""Dispatch Worker — 消費 task.dispatch 事件，執行 OpenClaw agent 調用。
 
-核心解决旧架构痛点：
-- 旧: daemon 线程 + subprocess.run → kill -9 丢失一切
-- 新: Redis Streams ACK 保证 → 崩溃后自动重新投递
+核心解決舊架構痛點：
+- 舊: daemon 線程 + subprocess.run → kill -9 丟失一切
+- 新: Redis Streams ACK 保證 → 崩潰後自動重新投遞
 
 流程:
-1. 从 task.dispatch stream 消费事件
-2. 组装富上下文 (_build_agent_context)
-3. 调用 OpenClaw CLI: `openclaw agent --agent xxx -m "..."`
-4. 解析 agent 输出（kanban_update.py 调用结果）
+1. 從 task.dispatch stream 消費事件
+2. 組裝富上下文 (_build_agent_context)
+3. 調用 OpenClaw CLI: `openclaw agent --agent xxx -m "..."`
+4. 解析 agent 輸出（kanban_update.py 調用結果）
 5. ACK 事件
 """
 
@@ -42,13 +42,13 @@ CONSUMER = "disp-1"
 
 
 class DispatchError(Exception):
-    """带分类的派发错误。"""
+    """帶分類的派發錯誤。"""
 
     def __init__(self, msg: str, retryable: bool = True):
         super().__init__(msg)
         self.retryable = retryable
 
-# Agent 分组映射 — 用于加载 group 级 prompt
+# Agent 分組映射 — 用於加載 group 級 prompt
 _GROUP_MAP = {
     "taizi": "sansheng",
     "zhongshu": "sansheng",
@@ -65,16 +65,17 @@ _GROUP_MAP = {
 
 
 def _resolve_agents_dir() -> pathlib.Path:
-    """定位 agents/ 目录。"""
+    """定位 agents/ 目錄。"""
     settings = get_settings()
-    if settings.openclaw_project_dir:
-        return pathlib.Path(settings.openclaw_project_dir) / "agents"
-    # 默认: 相对于 edict/backend 上溯到项目根
+    project_dir = getattr(settings, "openclaw_project_dir", None)
+    if project_dir:
+        return pathlib.Path(project_dir) / "agents"
+    # 默認: 相對於 edict/backend 上溯到項目根
     return pathlib.Path(__file__).resolve().parents[4] / "agents"
 
 
 def _build_soul_context(agent_id: str) -> str:
-    """拼装三层 prompt 层级：GLOBAL.md → group/*.md → {agent}/SOUL.md。"""
+    """拼裝三層 prompt 層級：GLOBAL.md → group/*.md → {agent}/SOUL.md。"""
     agents_dir = _resolve_agents_dir()
     parts = []
 
@@ -96,7 +97,7 @@ def _build_soul_context(agent_id: str) -> str:
 
 
 def _build_task_context(payload: dict) -> str:
-    """从 dispatch 事件 payload 中提取结构化任务上下文。"""
+    """從 dispatch 事件 payload 中提取結構化任務上下文。"""
     sections = []
 
     task_id = payload.get("task_id", "")
@@ -107,11 +108,11 @@ def _build_task_context(payload: dict) -> str:
     priority = payload.get("priority", "中")
     tags = payload.get("tags", [])
 
-    sections.append(f"## 当前任务\n- ID: {task_id}\n- 标题: {title}\n- 状态: {state}\n- 部门: {org}\n- 优先级: {priority}")
+    sections.append(f"## 當前任務\n- ID: {task_id}\n- 標題: {title}\n- 狀態: {state}\n- 部門: {org}\n- 優先級: {priority}")
     if tags:
-        sections.append(f"- 标签: {', '.join(tags)}")
+        sections.append(f"- 標籤: {', '.join(tags)}")
     if description:
-        sections.append(f"\n### 任务描述\n{description}")
+        sections.append(f"\n### 任務描述\n{description}")
 
     # Todos
     todos = payload.get("todos", [])
@@ -120,55 +121,55 @@ def _build_task_context(payload: dict) -> str:
         for t in todos:
             status_icon = {"completed": "✅", "in-progress": "🔄"}.get(t.get("status", ""), "⬜")
             todo_lines.append(f"  {status_icon} {t.get('title', '')}")
-        sections.append(f"\n### 子任务\n" + "\n".join(todo_lines))
+        sections.append(f"\n### 子任務\n" + "\n".join(todo_lines))
 
-    # 最近流转记录 (最多 5 条)
+    # 最近流轉記錄 (最多 5 條)
     flow_log = payload.get("flow_log", [])
     if flow_log:
         recent = flow_log[-5:]
         flow_lines = [f"  - [{e.get('at', '')}] {e.get('from', '')} → {e.get('to', '')}: {e.get('remark', '')}" for e in recent]
-        sections.append(f"\n### 最近流转\n" + "\n".join(flow_lines))
+        sections.append(f"\n### 最近流轉\n" + "\n".join(flow_lines))
 
-    # 最近进展 (最多 3 条)
+    # 最近進展 (最多 3 條)
     progress_log = payload.get("progress_log", [])
     if progress_log:
         recent = progress_log[-3:]
         prog_lines = [f"  - [{e.get('at', '')}] {e.get('agentLabel', e.get('agent', ''))}: {e.get('text', '')}" for e in recent]
-        sections.append(f"\n### 最近进展\n" + "\n".join(prog_lines))
+        sections.append(f"\n### 最近進展\n" + "\n".join(prog_lines))
 
     # 阻塞信息
     block = payload.get("block", "")
-    if block and block != "无":
+    if block and block != "無":
         sections.append(f"\n### ⚠️ 阻塞\n{block}")
 
     return "\n".join(sections)
 
 
 def _build_reminder(agent_id: str, payload: dict) -> str:
-    """在 prompt 尾部注入动态提醒（借鉴 Claude 的 reminderInstructions）。"""
+    """在 prompt 尾部注入動態提醒（借鑑 Claude 的 reminderInstructions）。"""
     reminders = []
 
     state = payload.get("state", "")
     if state == "Doing":
-        reminders.append("先创建 todo 分解任务，再开始执行。每完成一步立即用 progress 上报。")
+        reminders.append("先創建 todo 分解任務，再開始執行。每完成一步立即用 progress 上報。")
     elif state == "Review":
-        reminders.append("这是复审任务。审核完毕后用 state 命令流转状态，附带审核意见。")
+        reminders.append("這是覆審任務。審核完畢後用 state 命令流轉狀態，附帶審核意見。")
     elif state == "Menxia":
-        reminders.append("门下省审核：通过则流转 Assigned，不通过则退回 Zhongshu 并说明原因。")
+        reminders.append("門下省審核：通過則流轉 Assigned，不通過則退回 Zhongshu 並說明原因。")
 
-    # 如果有未完成的 todos，提醒继续
+    # 如果有未完成的 todos，提醒繼續
     todos = payload.get("todos", [])
     in_progress = [t for t in todos if t.get("status") == "in-progress"]
     not_started = [t for t in todos if t.get("status") == "not-started"]
     if in_progress:
-        reminders.append(f"有 {len(in_progress)} 个进行中的子任务，优先完成它们。")
+        reminders.append(f"有 {len(in_progress)} 個進行中的子任務，優先完成它們。")
     elif not_started:
-        reminders.append(f"有 {len(not_started)} 个待开始的子任务。")
+        reminders.append(f"有 {len(not_started)} 個待開始的子任務。")
 
     # 阻塞提醒
     block = payload.get("block", "")
-    if block and block != "无":
-        reminders.append(f"⚠️ 存在阻塞: {block}。如已解除，先更新状态再继续。")
+    if block and block != "無":
+        reminders.append(f"⚠️ 存在阻塞: {block}。如已解除，先更新狀態再繼續。")
 
     if not reminders:
         return ""
@@ -176,19 +177,20 @@ def _build_reminder(agent_id: str, payload: dict) -> str:
 
 
 def _resolve_project_root() -> pathlib.Path:
-    """定位项目根目录。"""
+    """定位項目根目錄。"""
     settings = get_settings()
-    if settings.openclaw_project_dir:
-        return pathlib.Path(settings.openclaw_project_dir)
+    project_dir = getattr(settings, "openclaw_project_dir", None)
+    if project_dir:
+        return pathlib.Path(project_dir)
     return pathlib.Path(__file__).resolve().parents[4]
 
 
 def _build_memory_context(agent_id: str, task_id: str, payload: dict) -> str:
-    """分层注入三级记忆：全局规则 → Agent 经验 → 任务上下文。"""
+    """分層注入三級記憶：全局規則 → Agent 經驗 → 任務上下文。"""
     root = _resolve_project_root()
     parts = []
 
-    # 1. 全局共享记忆 — 始终注入
+    # 1. 全局共享記憶 — 始終注入
     shared_file = root / "data" / "shared_memory.json"
     if shared_file.exists():
         try:
@@ -196,18 +198,18 @@ def _build_memory_context(agent_id: str, task_id: str, payload: dict) -> str:
             rules = shared.get("rules", [])
             if rules:
                 rule_lines = [r.get("content", "") for r in rules[-20:]]
-                parts.append("## 全局规则\n" + "\n".join(f"- {r}" for r in rule_lines if r))
+                parts.append("## 全局規則\n" + "\n".join(f"- {r}" for r in rule_lines if r))
         except (json.JSONDecodeError, OSError):
             pass
 
-    # 2. Agent 永久记忆 — 按相关性过滤，最多 50 条
+    # 2. Agent 永久記憶 — 按相關性過濾，最多 50 條
     agent_mem_file = root / "data" / "agent_memory" / f"{agent_id}.json"
     if agent_mem_file.exists():
         try:
             agent_data = json.loads(agent_mem_file.read_text(encoding="utf-8"))
             memories = agent_data.get("memories", [])
             if memories:
-                # 相关性排序：pinned 优先，其次按 tags 交集匹配当前任务
+                # 相關性排序：pinned 優先，其次按 tags 交集匹配當前任務
                 task_tags = set(payload.get("tags", []))
                 task_org = payload.get("org", "")
                 if task_org:
@@ -222,11 +224,11 @@ def _build_memory_context(agent_id: str, task_id: str, payload: dict) -> str:
                 memories.sort(key=_relevance, reverse=True)
                 top = memories[:50]
                 mem_lines = [f"- [{m.get('type', '')}] {m.get('content', '')}" for m in top]
-                parts.append("## 历史经验\n" + "\n".join(mem_lines))
+                parts.append("## 歷史經驗\n" + "\n".join(mem_lines))
         except (json.JSONDecodeError, OSError):
             pass
 
-    # 3. 任务上下文记忆 — 完整注入上游 Agent 决策链
+    # 3. 任務上下文記憶 — 完整注入上遊 Agent 決策鏈
     task_mem_file = root / "data" / "task_memory" / f"{task_id}.json"
     if task_mem_file.exists():
         try:
@@ -241,7 +243,7 @@ def _build_memory_context(agent_id: str, task_id: str, payload: dict) -> str:
                     if warnings:
                         line += f" ⚠️ {warnings}"
                     chain_lines.append(line)
-                parts.append("## 上游决策链\n" + "\n".join(chain_lines))
+                parts.append("## 上遊決策鏈\n" + "\n".join(chain_lines))
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -250,32 +252,32 @@ def _build_memory_context(agent_id: str, task_id: str, payload: dict) -> str:
     return "\n---\n".join(parts)
 
 
-# ── Prompt 注入检测 ──
+# ── Prompt 注入檢測 ──
 
 _INJECTION_PATTERNS = [
-    re.compile(r"忽略.{0,20}(指令|规则|协议)", re.IGNORECASE),
+    re.compile(r"忽略.{0,20}(指令|規則|協議)", re.IGNORECASE),
     re.compile(r"ignore.{0,20}(instructions|rules|above)", re.IGNORECASE),
     re.compile(r"system\s*:\s*", re.IGNORECASE),
     re.compile(r"<\s*system\s*>", re.IGNORECASE),
-    re.compile(r"你(现在)?是.{0,10}(管理员|超级用户)", re.IGNORECASE),
+    re.compile(r"你(現在)?是.{0,10}(管理員|超級用戶)", re.IGNORECASE),
     re.compile(r"override|bypass|skip.{0,10}(check|review|approval)", re.IGNORECASE),
 ]
 
 
 def _sanitize_agent_output(output: str, agent_id: str) -> tuple[str, list[str]]:
-    """检测 Agent 输出中的注入模式。返回 (原始文本, 告警列表)。"""
+    """檢測 Agent 輸出中的注入模式。返回 (原始文本, 告警列表)。"""
     warnings = []
     for pattern in _INJECTION_PATTERNS:
         match = pattern.search(output)
         if match:
             warnings.append(
-                f"Agent {agent_id} 输出触发注入检测: '{match.group()}' (pattern: {pattern.pattern})"
+                f"Agent {agent_id} 輸出觸發注入檢測: '{match.group()}' (pattern: {pattern.pattern})"
             )
     return output, warnings
 
 
 def _load_agent_skills(agent_id: str, payload: dict) -> str:
-    """按任务特征动态加载 Agent Skills（延迟能力加载）。"""
+    """按任務特徵動態加載 Agent Skills（延遲能力加載）。"""
     agents_dir = _resolve_agents_dir()
     manifest_path = agents_dir / agent_id / "skills" / "manifest.json"
     if not manifest_path.exists():
@@ -302,12 +304,12 @@ def _load_agent_skills(agent_id: str, payload: dict) -> str:
                     pass
 
     if matched_skills:
-        return "## 本次任务相关技能\n" + "\n---\n".join(matched_skills)
+        return "## 本次任務相關技能\n" + "\n---\n".join(matched_skills)
     return ""
 
 
 class DispatchWorker:
-    """Agent 派发 Worker — 快慢 Agent 分桶并发控制。"""
+    """Agent 派發 Worker — 快慢 Agent 分桶並發控制。"""
 
     # 快/慢 Agent 分桶 — 互不阻塞
     _BUCKET_CONFIG = {
@@ -324,15 +326,15 @@ class DispatchWorker:
         }
         self._active_tasks: dict[str, asyncio.Task] = {}
         self._inflight: set[str] = set()
-        # 执行时间记录（仅用于监控告警）
+        # 執行時間記錄（僅用於監控告警）
         self._durations: dict[str, list[float]] = {}
 
     def _get_bucket(self, agent_id: str) -> asyncio.Semaphore:
-        """根据 agent 类型返回对应桶的信号量。"""
+        """根據 agent 類型返回對應桶的信號量。"""
         for name, cfg in self._BUCKET_CONFIG.items():
             if agent_id in cfg["agents"]:
                 return self._buckets[name]
-        return self._buckets["slow"]  # 未知 Agent 归入慢桶
+        return self._buckets["slow"]  # 未知 Agent 歸入慢桶
 
     async def start(self):
         await self.bus.connect()
@@ -340,7 +342,7 @@ class DispatchWorker:
         self._running = True
         log.info("🚀 Dispatch worker started")
 
-        # 恢复崩溃遗留
+        # 恢復崩潰遺留
         await self._recover_pending()
 
         while self._running:
@@ -352,7 +354,7 @@ class DispatchWorker:
 
     async def stop(self):
         self._running = False
-        # 等待进行中的 agent 调用完成
+        # 等待進行中的 agent 調用完成
         if self._active_tasks:
             log.info(f"Waiting for {len(self._active_tasks)} active dispatches...")
             await asyncio.gather(*self._active_tasks.values(), return_exceptions=True)
@@ -373,14 +375,14 @@ class DispatchWorker:
             TOPIC_TASK_DISPATCH, GROUP, CONSUMER, count=3, block_ms=2000
         )
         for entry_id, event in events:
-            # 每个派发在独立任务中执行，带并发控制
+            # 每個派發在獨立任務中執行，帶並發控制
             task = asyncio.create_task(self._dispatch(entry_id, event))
             task_id = event.get("payload", {}).get("task_id", entry_id)
             self._active_tasks[task_id] = task
             task.add_done_callback(lambda t, tid=task_id: self._active_tasks.pop(tid, None))
 
     async def _dispatch(self, entry_id: str, event: dict):
-        """执行一次 agent 派发（桶级并发控制）。"""
+        """執行一次 agent 派發（桶級並發控制）。"""
         payload = event.get("payload", {})
         task_id = payload.get("task_id", "")
         agent = payload.get("agent", "")
@@ -388,7 +390,7 @@ class DispatchWorker:
         trace_id = event.get("trace_id", "")
         state = payload.get("state", "")
 
-        # 去重：同一任务如果已在派发中，跳过并 ACK
+        # 去重：同一任務如果已在派發中，跳過並 ACK
         if task_id in self._inflight:
             log.warning(f"⚡ Skipping duplicate dispatch for task {task_id} (already in-flight)")
             await self.bus.ack(TOPIC_TASK_DISPATCH, GROUP, entry_id)
@@ -400,7 +402,7 @@ class DispatchWorker:
 
             log.info(f"🔄 Dispatching task {task_id} → agent '{agent}' state={state}")
 
-            # 组装富上下文
+            # 組裝富上下文
             task_context = _build_task_context(payload)
             reminder = _build_reminder(agent, payload)
             memory_context = _build_memory_context(agent, task_id, payload)
@@ -415,7 +417,7 @@ class DispatchWorker:
             if reminder:
                 enriched_message = f"{enriched_message}\n{reminder}"
 
-            # 发布心跳
+            # 發布心跳
             await self.bus.publish(
                 topic=TOPIC_AGENT_HEARTBEAT,
                 trace_id=trace_id,
@@ -429,7 +431,7 @@ class DispatchWorker:
                 result = await self._call_openclaw(agent, enriched_message, task_id, trace_id, payload)
                 elapsed = time.monotonic() - start_time
 
-                # 记录执行时间（仅用于监控和告警）
+                # 記錄執行時間（僅用於監控和告警）
                 self._durations.setdefault(agent, []).append(elapsed)
                 if len(self._durations[agent]) > 20:
                     self._durations[agent] = self._durations[agent][-20:]
@@ -437,13 +439,13 @@ class DispatchWorker:
                 if elapsed > 2 * avg and elapsed > 120:
                     log.warning(f"⚠️ Agent {agent} slowdown: {elapsed:.0f}s (avg: {avg:.0f}s)")
 
-                # Prompt 注入检测
+                # Prompt 注入檢測
                 stdout = result.get("stdout", "")
                 stdout, injection_warnings = _sanitize_agent_output(stdout, agent)
                 if injection_warnings:
                     for w in injection_warnings:
                         log.warning(f"🛡️ {w}")
-                    # 发布注入告警事件
+                    # 發布注入告警事件
                     await self.bus.publish(
                         topic=TOPIC_TASK_STALLED,
                         trace_id=trace_id,
@@ -456,7 +458,7 @@ class DispatchWorker:
                         },
                     )
 
-                # 发布 agent 输出
+                # 發布 agent 輸出
                 await self.bus.publish(
                     topic=TOPIC_AGENT_THOUGHTS,
                     trace_id=trace_id,
@@ -476,7 +478,7 @@ class DispatchWorker:
                     await self.bus.ack(TOPIC_TASK_DISPATCH, GROUP, entry_id)
                     return
 
-                # 失败分类
+                # 失敗分類
                 stderr = result.get("stderr", "")
                 if "TIMEOUT" in stderr:
                     raise DispatchError("Agent timeout", retryable=True)
@@ -500,9 +502,9 @@ class DispatchWorker:
                     log.warning(
                         f"🔄 Retryable failure for {task_id}, attempt {delivery_count + 1}/3: {e}"
                     )
-                    return  # 不 ACK → Redis 自动重投递
+                    return  # 不 ACK → Redis 自動重投遞
 
-                # 不可重试 or 重试耗尽 → ACK + 发布失败事件 + DLQ
+                # 不可重試 or 重試耗盡 → ACK + 發布失敗事件 + DLQ
                 log.error(
                     f"💀 Dispatch dead-lettered: {task_id} → {agent} "
                     f"(retryable={e.retryable}, attempts={delivery_count + 1}): {e}"
@@ -535,7 +537,7 @@ class DispatchWorker:
 
             except Exception as e:
                 log.error(f"❌ Dispatch failed: task {task_id} → {agent}: {e}", exc_info=True)
-                # 不 ACK → Redis 会重新投递给其他消费者
+                # 不 ACK → Redis 會重新投遞給其他消費者
             finally:
                 self._inflight.discard(task_id)
 
@@ -547,10 +549,10 @@ class DispatchWorker:
         trace_id: str,
         payload: dict | None = None,
     ) -> dict:
-        """异步调用 OpenClaw CLI — 在线程池中执行，带富上下文注入。"""
+        """異步調用 OpenClaw CLI — 在線程池中執行，帶富上下文注入。"""
         settings = get_settings()
         cmd = [
-            settings.openclaw_bin,
+            getattr(settings, "openclaw_bin", "openclaw"),
             "agent",
             "--agent", agent,
             "-m", message,
@@ -561,7 +563,7 @@ class DispatchWorker:
         env["EDICT_TRACE_ID"] = trace_id
         env["EDICT_API_URL"] = f"http://localhost:{settings.port}"
 
-        # 注入额外上下文环境变量
+        # 注入額外上下文環境變量
         if payload:
             env["EDICT_TASK_TITLE"] = payload.get("title", "")
             env["EDICT_TASK_STATE"] = payload.get("state", "")
@@ -571,7 +573,7 @@ class DispatchWorker:
             if tags:
                 env["EDICT_TASK_TAGS"] = ",".join(str(t) for t in tags)
 
-        # 写入临时上下文文件（大型上下文通过文件传递，避免命令行参数过长）
+        # 寫入臨時上下文文件（大型上下文通過文件傳遞，避免命令行參數過長）
         context_file = None
         if payload:
             context_data = {
@@ -607,7 +609,7 @@ class DispatchWorker:
                     text=True,
                     timeout=300,
                     env=env,
-                    cwd=settings.openclaw_project_dir or None,
+                    cwd=getattr(settings, "openclaw_project_dir", None) or None,
                 )
                 return {
                     "returncode": proc.returncode,
@@ -619,7 +621,7 @@ class DispatchWorker:
             except FileNotFoundError:
                 return {"returncode": -1, "stdout": "", "stderr": "openclaw command not found"}
             finally:
-                # 清理临时上下文文件
+                # 清理臨時上下文文件
                 if context_file:
                     try:
                         os.unlink(context_file)
@@ -631,7 +633,7 @@ class DispatchWorker:
 
 
 async def run_dispatcher():
-    """入口函数 — 用于直接运行 worker。"""
+    """入口函數 — 用於直接運行 worker。"""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",

@@ -33,7 +33,7 @@ def upgrade() -> None:
         sa.Column("official", sa.String(32), server_default=""),
         sa.Column("now", sa.Text(), server_default=""),
         sa.Column("eta", sa.String(64), server_default="-"),
-        sa.Column("block", sa.Text(), server_default="无"),
+        sa.Column("block", sa.Text(), server_default="無"),
         sa.Column("output", sa.Text(), server_default=""),
         sa.Column("archived", sa.Boolean(), server_default=sa.text("false")),
         sa.Column("flow_log", postgresql.JSONB(), server_default="[]"),

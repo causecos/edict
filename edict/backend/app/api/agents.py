@@ -1,4 +1,4 @@
-"""Agents API — Agent 配置和状态查询。"""
+"""Agents API — Agent 配置和狀態查詢。"""
 
 import json
 import logging
@@ -9,17 +9,17 @@ from fastapi import APIRouter
 log = logging.getLogger("edict.api.agents")
 router = APIRouter()
 
-# Agent 元信息（对应 agents/ 目录下的 SOUL.md）
+# Agent 元信息（對應 agents/ 目錄下的 SOUL.md）
 AGENT_META = {
-    "zaochao": {"name": "早朝（朝会主持）", "role": "朝会召集与议程管理", "icon": "🏛️"},
-    "shangshu": {"name": "尚书令", "role": "总协调与任务监督", "icon": "📜"},
-    "zhongshu": {"name": "中书省", "role": "起草诏令与方案规划", "icon": "✍️"},
-    "menxia": {"name": "门下省", "role": "审核与封驳", "icon": "🔍"},
-    "libu": {"name": "吏部", "role": "人事与组织管理", "icon": "👤"},
-    "hubu": {"name": "户部", "role": "财务与资源管理", "icon": "💰"},
-    "gongbu": {"name": "工部", "role": "工程与技术实施", "icon": "🔧"},
-    "xingbu": {"name": "刑部", "role": "规范与质量审查", "icon": "⚖️"},
-    "bingbu": {"name": "兵部", "role": "安全与应急响应", "icon": "🛡️"},
+    "zaochao": {"name": "早朝（朝會主持）", "role": "朝會召集與議程管理", "icon": "🏛️"},
+    "shangshu": {"name": "尚書令", "role": "總協調與任務監督", "icon": "📜"},
+    "zhongshu": {"name": "中書省", "role": "起草詔令與方案規劃", "icon": "✍️"},
+    "menxia": {"name": "門下省", "role": "審核與封駁", "icon": "🔍"},
+    "libu": {"name": "吏部", "role": "人事與組織管理", "icon": "👤"},
+    "hubu": {"name": "戶部", "role": "財務與資源管理", "icon": "💰"},
+    "gongbu": {"name": "工部", "role": "工程與技術實施", "icon": "🔧"},
+    "xingbu": {"name": "刑部", "role": "規範與質量審查", "icon": "⚖️"},
+    "bingbu": {"name": "兵部", "role": "安全與應急響應", "icon": "🛡️"},
 }
 
 
@@ -37,12 +37,12 @@ async def list_agents():
 
 @router.get("/{agent_id}")
 async def get_agent(agent_id: str):
-    """获取 Agent 详情。"""
+    """獲取 Agent 詳情。"""
     meta = AGENT_META.get(agent_id)
     if not meta:
         return {"error": f"Agent '{agent_id}' not found"}, 404
 
-    # 尝试读取 SOUL.md
+    # 嘗試讀取 SOUL.md
     soul_path = Path(__file__).parents[4] / "agents" / agent_id / "SOUL.md"
     soul_content = ""
     if soul_path.exists():
@@ -57,7 +57,7 @@ async def get_agent(agent_id: str):
 
 @router.get("/{agent_id}/config")
 async def get_agent_config(agent_id: str):
-    """获取 Agent 运行时配置。"""
+    """獲取 Agent 運行時配置。"""
     config_path = Path(__file__).parents[4] / "data" / "agent_config.json"
     if not config_path.exists():
         return {"agent_id": agent_id, "config": {}}

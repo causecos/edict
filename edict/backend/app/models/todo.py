@@ -1,7 +1,7 @@
-"""Todo 模型 — 结构化子任务。
+"""Todo 模型 — 結構化子任務。
 
 遵循 Edict Architecture §4 Todo JSON Schema。
-支持层级结构（parent_id）和 checkpoint 跟踪。
+支持層級結構（parent_id）和 checkpoint 跟蹤。
 """
 
 import uuid
@@ -14,26 +14,26 @@ from ..db import Base
 
 
 class Todo(Base):
-    """结构化子任务表。"""
+    """結構化子任務表。"""
     __tablename__ = "todos"
 
     todo_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    trace_id = Column(String(32), nullable=False, index=True, comment="关联任务ID")
-    parent_id = Column(UUID(as_uuid=True), nullable=True, comment="父级 todo_id（树状结构）")
+    trace_id = Column(String(32), nullable=False, index=True, comment="關聯任務ID")
+    parent_id = Column(UUID(as_uuid=True), nullable=True, comment="父級 todo_id（樹狀結構）")
 
-    title = Column(String(256), nullable=False, comment="子任务标题")
-    description = Column(Text, default="", comment="详细描述")
-    owner = Column(String(64), default="", comment="负责部门")
-    assignee_agent = Column(String(32), default="", comment="执行 Agent")
+    title = Column(String(256), nullable=False, comment="子任務標題")
+    description = Column(Text, default="", comment="詳細描述")
+    owner = Column(String(64), default="", comment="負責部門")
+    assignee_agent = Column(String(32), default="", comment="執行 Agent")
 
     status = Column(String(32), nullable=False, default="open", index=True,
-                    comment="状态: open|in_progress|done|cancelled")
-    priority = Column(String(16), default="normal", comment="优先级: low|normal|high|urgent")
-    estimated_cost = Column(Float, default=0.0, comment="预估 token 耗费")
+                    comment="狀態: open|in_progress|done|cancelled")
+    priority = Column(String(16), default="normal", comment="優先級: low|normal|high|urgent")
+    estimated_cost = Column(Float, default=0.0, comment="預估 token 耗費")
 
-    created_by = Column(String(64), default="", comment="创建者")
-    checkpoints = Column(JSONB, default=list, comment="检查点 [{name, status}]")
-    metadata_ = Column("metadata", JSONB, default=dict, comment="扩展元数据")
+    created_by = Column(String(64), default="", comment="創建者")
+    checkpoints = Column(JSONB, default=list, comment="檢查點 [{name, status}]")
+    metadata_ = Column("metadata", JSONB, default=dict, comment="擴展元數據")
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(

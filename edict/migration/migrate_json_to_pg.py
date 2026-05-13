@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""JSON → Postgres 数据迁移脚本。
+"""JSON → Postgres 數據遷移腳本。
 
-读取旧版 data/tasks_source.json，导入到 Edict Postgres 数据库。
+讀取舊版 data/tasks_source.json，導入到 Edict Postgres 數據庫。
 
 用法:
-  # 确保 Postgres 已运行且 schema 已创建（alembic upgrade head）
+  # 確保 Postgres 已運行且 schema 已創建（alembic upgrade head）
   python3 migrate_json_to_pg.py
 
-  # 指定数据文件
+  # 指定數據文件
   python3 migrate_json_to_pg.py --file /path/to/tasks_source.json
 
-  # Dry run（只分析不写入）
+  # Dry run（只分析不寫入）
   python3 migrate_json_to_pg.py --dry-run
 """
 
@@ -23,7 +23,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-# 添加 backend 路径
+# 添加 backend 路徑
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
 from sqlalchemy import text
@@ -33,7 +33,7 @@ from app.models.task import Task, TaskState
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 log = logging.getLogger("migrate")
 
-# 旧版状态 → Edict TaskState
+# 舊版狀態 → Edict TaskState
 STATE_MAP = {
     "Taizi": TaskState.Taizi,
     "Zhongshu": TaskState.Zhongshu,
@@ -53,14 +53,14 @@ STATE_MAP = {
 
 
 def parse_old_task(old: dict) -> dict:
-    """将旧版 task JSON 转换为 Edict Task 参数。"""
+    """將舊版 task JSON 轉換爲 Edict Task 參數。"""
     state_str = old.get("state", "Taizi")
     state = STATE_MAP.get(state_str, TaskState.Taizi)
 
     legacy_id = old.get("id", "")
-    title = old.get("title", "未命名任务")
+    title = old.get("title", "未命名任務")
 
-    # 解析时间
+    # 解析時間
     updated_str = old.get("updatedAt", "")
     try:
         updated_at = datetime.fromisoformat(updated_str.replace("Z", "+00:00"))
@@ -80,7 +80,7 @@ def parse_old_task(old: dict) -> dict:
         "official": old.get("official", ""),
         "now": old.get("now", ""),
         "eta": old.get("eta", "-"),
-        "block": old.get("block", "无"),
+        "block": old.get("block", "無"),
         "output": old.get("output", ""),
         "archived": bool(old.get("archived", False)),
         "flow_log": old.get("flow_log", []),
@@ -99,23 +99,23 @@ def parse_old_task(old: dict) -> dict:
             "legacy_eta": old.get("eta", ""),
             "legacy_block": old.get("block", ""),
         },
-        "created_at": updated_at,  # 旧版没有 created_at，用 updated_at 近似
+        "created_at": updated_at,  # 舊版沒有 created_at，用 updated_at 近似
         "updated_at": updated_at,
     }
 
 
 async def migrate(file_path: Path, dry_run: bool = False):
-    """执行迁移。"""
+    """執行遷移。"""
     if not file_path.exists():
-        log.error(f"数据文件不存在: {file_path}")
+        log.error(f"數據文件不存在: {file_path}")
         return
 
-    # 读取旧版数据
+    # 讀取舊版數據
     raw = file_path.read_text(encoding="utf-8")
     old_tasks = json.loads(raw)
-    log.info(f"读取到 {len(old_tasks)} 个旧版任务")
+    log.info(f"讀取到 {len(old_tasks)} 個舊版任務")
 
-    # 统计
+    # 統計
     stats = {"total": len(old_tasks), "migrated": 0, "skipped": 0, "errors": 0}
     by_state = {}
 
@@ -123,46 +123,46 @@ async def migrate(file_path: Path, dry_run: bool = False):
         state_str = old.get("state", "?")
         by_state[state_str] = by_state.get(state_str, 0) + 1
 
-    log.info(f"状态分布: {by_state}")
+    log.info(f"狀態分布: {by_state}")
 
     if dry_run:
-        log.info("=== DRY RUN 模式，不写入数据库 ===")
+        log.info("=== DRY RUN 模式，不寫入數據庫 ===")
         for old in old_tasks:
             params = parse_old_task(old)
             log.info(f"  [{params['meta']['legacy_id']}] {params['title'][:40]} → {params['state'].value}")
-        log.info(f"Dry run 完成: {stats['total']} 个任务待迁移")
+        log.info(f"Dry run 完成: {stats['total']} 個任務待遷移")
         return
 
-    # 写入 Postgres
+    # 寫入 Postgres
     async with async_session() as db:
         for old in old_tasks:
             try:
                 params = parse_old_task(old)
                 legacy_id = params["meta"]["legacy_id"]
 
-                # 检查是否已迁移
+                # 檢查是否已遷移
                 from sqlalchemy import select
                 existing = await db.execute(
                     select(Task).where(Task.tags.contains([legacy_id]))
                 )
                 if existing.scalars().first():
-                    log.debug(f"跳过已存在: {legacy_id}")
+                    log.debug(f"跳過已存在: {legacy_id}")
                     stats["skipped"] += 1
                     continue
 
                 task = Task(**params)
                 db.add(task)
                 stats["migrated"] += 1
-                log.info(f"✅ 迁移: [{legacy_id}] {params['title'][:40]} → {params['state'].value}")
+                log.info(f"✅ 遷移: [{legacy_id}] {params['title'][:40]} → {params['state'].value}")
 
             except Exception as e:
-                log.error(f"❌ 迁移失败: {old.get('id', '?')}: {e}")
+                log.error(f"❌ 遷移失敗: {old.get('id', '?')}: {e}")
                 stats["errors"] += 1
 
         await db.commit()
 
-    log.info(f"迁移完成: 总计 {stats['total']}, 成功 {stats['migrated']}, "
-             f"跳过 {stats['skipped']}, 错误 {stats['errors']}")
+    log.info(f"遷移完成: 總計 {stats['total']}, 成功 {stats['migrated']}, "
+             f"跳過 {stats['skipped']}, 錯誤 {stats['errors']}")
 
 
 def main():

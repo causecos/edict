@@ -1,9 +1,9 @@
-"""WebSocket 端点 — 实时推送事件到前端。
+"""WebSocket 端點 — 實時推送事件到前端。
 
-取代旧架构的 5 秒 HTTP 轮询，改为：
-- 客户端 WebSocket 连接
-- 服务端订阅 Redis Pub/Sub 频道
-- 实时推送事件（状态变更、Agent 思考流、心跳等）
+取代舊架構的 5 秒 HTTP 輪詢，改爲：
+- 客戶端 WebSocket 連接
+- 服務端訂閱 Redis Pub/Sub 頻道
+- 實時推送事件（狀態變更、Agent 思考流、心跳等）
 """
 
 import asyncio
@@ -19,27 +19,27 @@ from ..services.event_bus import get_event_bus
 log = logging.getLogger("edict.ws")
 router = APIRouter()
 
-# 活跃连接管理
+# 活躍連接管理
 _connections: set[WebSocket] = set()
 
 
 @router.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
-    """主 WebSocket 端点 — 推送所有事件。"""
+    """主 WebSocket 端點 — 推送所有事件。"""
     await ws.accept()
     _connections.add(ws)
     log.info(f"WebSocket connected. Total: {len(_connections)}")
 
-    # 创建独立的 Redis Pub/Sub 连接
+    # 創建獨立的 Redis Pub/Sub 連接
     settings = get_settings()
     pubsub_redis = aioredis.from_url(settings.redis_url, decode_responses=True)
     pubsub = pubsub_redis.pubsub()
 
-    # 订阅所有 edict 频道
+    # 訂閱所有 edict 頻道
     await pubsub.psubscribe("edict:pubsub:*")
 
     try:
-        # 并发：监听 Redis Pub/Sub + 客户端消息
+        # 並發：監聽 Redis Pub/Sub + 客戶端消息
         await asyncio.gather(
             _relay_events(pubsub, ws),
             _handle_client_messages(ws),
@@ -56,7 +56,7 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 async def _relay_events(pubsub, ws: WebSocket):
-    """从 Redis Pub/Sub 接收事件，推送到 WebSocket。"""
+    """從 Redis Pub/Sub 接收事件，推送到 WebSocket。"""
     async for message in pubsub.listen():
         if message["type"] == "pmessage":
             channel = message["channel"]
@@ -78,7 +78,7 @@ async def _relay_events(pubsub, ws: WebSocket):
 
 
 async def _handle_client_messages(ws: WebSocket):
-    """处理客户端发送的消息（心跳、订阅过滤等）。"""
+    """處理客戶端發送的消息（心跳、訂閱過濾等）。"""
     while True:
         try:
             data = await ws.receive_json()
@@ -87,7 +87,7 @@ async def _handle_client_messages(ws: WebSocket):
             if msg_type == "ping":
                 await ws.send_json({"type": "pong"})
             elif msg_type == "subscribe":
-                # 前端可请求只订阅特定 topic（未来扩展）
+                # 前端可請求只訂閱特定 topic（未來擴展）
                 topics = data.get("topics", [])
                 log.debug(f"Client subscribe request: {topics}")
                 await ws.send_json({"type": "subscribed", "topics": topics})
@@ -102,7 +102,7 @@ async def _handle_client_messages(ws: WebSocket):
 
 @router.websocket("/ws/task/{task_id}")
 async def task_websocket(ws: WebSocket, task_id: str):
-    """单任务 WebSocket — 只推送与特定任务相关的事件。"""
+    """單任務 WebSocket — 只推送與特定任務相關的事件。"""
     await ws.accept()
     _connections.add(ws)
 
@@ -121,7 +121,7 @@ async def task_websocket(ws: WebSocket, task_id: str):
                     if isinstance(payload, str):
                         payload = json.loads(payload)
 
-                    # 只转发与此任务相关的事件
+                    # 只轉發與此任務相關的事件
                     if payload.get("task_id") == task_id:
                         topic = message["channel"].replace("edict:pubsub:", "")
                         await ws.send_json({
@@ -140,7 +140,7 @@ async def task_websocket(ws: WebSocket, task_id: str):
 
 
 async def broadcast(event: dict):
-    """向所有连接的 WebSocket 客户端广播事件（服务端内部调用用）。"""
+    """向所有連接的 WebSocket 客戶端廣播事件（服務端內部調用用）。"""
     dead = set()
     for ws in _connections:
         try:

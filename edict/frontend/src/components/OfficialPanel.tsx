@@ -15,7 +15,7 @@ export default function OfficialPanel() {
   }, [loadOfficials]);
 
   if (!officialsData?.officials) {
-    return <div className="empty">⚠️ 请确保本地服务器已启动</div>;
+    return <div className="empty">⚠️ 請確保本地服務器已啓動</div>;
   }
 
   const offs = officialsData.officials;
@@ -34,11 +34,11 @@ export default function OfficialPanel() {
       {/* Activity banner */}
       {alive.length > 0 && (
         <div className="off-activity">
-          <span>🟢 当前活跃：</span>
+          <span>🟢 當前活躍：</span>
           {alive.map((o) => (
             <span key={o.id} style={{ fontSize: 12 }}>{o.emoji} {o.role}</span>
           ))}
-          <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 'auto' }}>其余官员待命</span>
+          <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 'auto' }}>其餘官員待命</span>
         </div>
       )}
 
@@ -46,21 +46,21 @@ export default function OfficialPanel() {
       <div className="off-kpi">
         <div className="kpi">
           <div className="kpi-v" style={{ color: 'var(--acc)' }}>{offs.length}</div>
-          <div className="kpi-l">在职官员</div>
+          <div className="kpi-l">在職官員</div>
         </div>
         <div className="kpi">
           <div className="kpi-v" style={{ color: '#f5c842' }}>{totals.tasks_done || 0}</div>
-          <div className="kpi-l">累计完成旨意</div>
+          <div className="kpi-l">累計完成旨意</div>
         </div>
         <div className="kpi">
           <div className="kpi-v" style={{ color: (totals.cost_cny || 0) > 20 ? 'var(--warn)' : 'var(--ok)' }}>
             ¥{totals.cost_cny || 0}
           </div>
-          <div className="kpi-l">累计费用（含缓存）</div>
+          <div className="kpi-l">累計費用（含緩存）</div>
         </div>
         <div className="kpi">
           <div className="kpi-v" style={{ fontSize: 16, paddingTop: 4 }}>{officialsData.top_official || '—'}</div>
-          <div className="kpi-l">功绩最高</div>
+          <div className="kpi-l">功績最高</div>
         </div>
       </div>
 
@@ -68,7 +68,7 @@ export default function OfficialPanel() {
       <div className="off-layout">
         {/* Left: Ranklist */}
         <div className="off-ranklist">
-          <div className="orl-hdr">功绩排行</div>
+          <div className="orl-hdr">功績排行</div>
           {offs.map((o) => {
             const hb = o.heartbeat || { status: 'idle' };
             return (
@@ -97,7 +97,7 @@ export default function OfficialPanel() {
           {sel ? (
             <OfficialDetail official={sel} maxTk={maxTk} onOpenTask={setModalTaskId} />
           ) : (
-            <div className="empty">选择左侧官员查看详情</div>
+            <div className="empty">選擇左側官員查看詳情</div>
           )}
         </div>
       </div>
@@ -119,10 +119,10 @@ function OfficialDetail({
   const edicts = o.participated_edicts || [];
 
   const tkBars = [
-    { l: '输入', v: o.tokens_in, color: '#6a9eff' },
-    { l: '输出', v: o.tokens_out, color: '#a07aff' },
-    { l: '缓存读', v: o.cache_read, color: '#2ecc8a' },
-    { l: '缓存写', v: o.cache_write, color: '#f5c842' },
+    { l: '輸入', v: o.tokens_in, color: '#6a9eff' },
+    { l: '輸出', v: o.tokens_out, color: '#a07aff' },
+    { l: '緩存讀', v: o.cache_read, color: '#2ecc8a' },
+    { l: '緩存寫', v: o.cache_write, color: '#f5c842' },
   ];
 
   return (
@@ -136,21 +136,21 @@ function OfficialDetail({
             {o.label} · <span style={{ color: 'var(--acc)' }}>{o.model_short || o.model}</span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-            🏅 {o.rank} · 功绩分 {o.merit_score}
+            🏅 {o.rank} · 功績分 {o.merit_score}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div className={`hb ${hb.status}`} style={{ marginBottom: 4 }}>{hb.label}</div>
-          {o.last_active && <div style={{ fontSize: 10, color: 'var(--muted)' }}>活跃 {o.last_active}</div>}
+          {o.last_active && <div style={{ fontSize: 10, color: 'var(--muted)' }}>活躍 {o.last_active}</div>}
           <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
-            {o.sessions} 个会话 · {o.messages} 条消息
+            {o.sessions} 個會話 · {o.messages} 條消息
           </div>
         </div>
       </div>
 
       {/* Merit Stats */}
       <div style={{ marginBottom: 18 }}>
-        <div className="sec-title">功绩统计</div>
+        <div className="sec-title">功績統計</div>
         <div style={{ display: 'flex', gap: 16 }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ok)' }}>{o.tasks_done}</div>
@@ -158,11 +158,11 @@ function OfficialDetail({
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--warn)' }}>{o.tasks_active}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>执行中</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>執行中</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--acc)' }}>{o.flow_participations}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>流转参与</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>流轉參與</div>
           </div>
         </div>
       </div>
@@ -185,21 +185,21 @@ function OfficialDetail({
 
       {/* Cost */}
       <div style={{ marginBottom: 18 }}>
-        <div className="sec-title">累计费用</div>
+        <div className="sec-title">累計費用</div>
         <div style={{ display: 'flex', gap: 10 }}>
           <span style={{ fontSize: 12, color: o.cost_cny > 10 ? 'var(--danger)' : o.cost_cny > 3 ? 'var(--warn)' : 'var(--ok)' }}>
-            <b>¥{o.cost_cny}</b> 人民币
+            <b>¥{o.cost_cny}</b> 人民幣
           </span>
           <span style={{ fontSize: 12 }}><b>${o.cost_usd}</b> 美元</span>
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>总计 {totTk.toLocaleString()} tokens</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>總計 {totTk.toLocaleString()} tokens</span>
         </div>
       </div>
 
       {/* Participated Edicts */}
       <div>
-        <div className="sec-title">参与旨意（{edicts.length} 道）</div>
+        <div className="sec-title">參與旨意（{edicts.length} 道）</div>
         {edicts.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>暂无旨意记录</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>暫無旨意記錄</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {edicts.map((e) => (

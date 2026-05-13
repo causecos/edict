@@ -1,4 +1,4 @@
-"""Edict 数据模型包。"""
+"""Edict 數據模型包。"""
 
 from .audit import AuditLog
 from .outbox import OutboxEvent

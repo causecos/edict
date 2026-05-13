@@ -1,4 +1,4 @@
-"""Edict 配置管理 — 从环境变量加载所有配置。"""
+"""Edict 配置管理 — 從環境變量加載所有配置。"""
 from __future__ import annotations
 
 from functools import lru_cache
@@ -27,16 +27,11 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     debug: bool = False
 
-    # ── OpenClaw ──
-    openclaw_gateway_url: str = "http://localhost:18789"
-    openclaw_bin: str = "openclaw"
-    openclaw_project_dir: str | None = None
-
     # ── Legacy 兼容 ──
     legacy_data_dir: str = "../data"
     legacy_tasks_file: str = "../data/tasks_source.json"
 
-    # ── 调度参数 ──
+    # ── 調度參數 ──
     stall_threshold_sec: int = 180
     max_dispatch_retry: int = 3
     dispatch_timeout_sec: int = 300

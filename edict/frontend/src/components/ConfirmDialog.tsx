@@ -21,7 +21,7 @@ export default function ConfirmDialog({ title, message, okLabel, okClass, onOk, 
           className="confirm-reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="输入原因（可留空）"
+          placeholder="輸入原因（可留空）"
           rows={2}
         />
         <div className="confirm-btns">

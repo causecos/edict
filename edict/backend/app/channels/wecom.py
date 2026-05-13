@@ -10,7 +10,7 @@ from .base import NotificationChannel
 
 class WecomChannel(NotificationChannel):
     name: ClassVar[str] = 'wecom'
-    label: ClassVar[str] = '企业微信 WeCom'
+    label: ClassVar[str] = '企業微信 WeCom'
     icon: ClassVar[str] = '💼'
     placeholder: ClassVar[str] = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...'
     allowed_domains: ClassVar[tuple[str, ...]] = ('qyapi.weixin.qq.com',)
@@ -26,7 +26,7 @@ class WecomChannel(NotificationChannel):
     def send(cls, webhook: str, title: str, content: str, url: str | None = None) -> bool:
         text = f"**{title}**\n{content}"
         if url:
-            text += f"\n[查看详情]({url})"
+            text += f"\n[查看詳情]({url})"
         payload = json.dumps({
             'msgtype': 'markdown',
             'markdown': {'content': text}

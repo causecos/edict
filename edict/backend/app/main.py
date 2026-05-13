@@ -1,15 +1,15 @@
-"""Edict Backend — FastAPI 应用入口。
+"""Edict Backend — FastAPI 應用入口。
 
 Lifespan 管理：
-- startup: 连接 Redis Event Bus, 初始化数据库
-- shutdown: 关闭连接
+- startup: 連接 Redis Event Bus, 初始化數據庫
+- shutdown: 關閉連接
 
 路由：
-- /api/tasks — 任务 CRUD
+- /api/tasks — 任務 CRUD
 - /api/agents — Agent 信息
-- /api/events — 事件查询
+- /api/events — 事件查詢
 - /api/admin — 管理操作
-- /ws — WebSocket 实时推送
+- /ws — WebSocket 實時推送
 """
 
 import logging
@@ -32,11 +32,11 @@ log = logging.getLogger("edict")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理。"""
+    """應用生命周期管理。"""
     settings = get_settings()
     log.info(f"🏛️ Edict Backend starting on port {settings.port}...")
 
-    # 连接 Event Bus
+    # 連接 Event Bus
     bus = await get_event_bus()
     log.info("✅ Event Bus connected")
 
@@ -49,12 +49,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Edict 三省六部",
-    description="事件驱动的 AI Agent 协作平台",
+    description="事件驅動的 AI Agent 協作平臺",
     version="2.0.0",
     lifespan=lifespan,
 )
 
-# CORS — 开发环境允许所有来源
+# CORS — 開發環境允許所有來源
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -63,7 +63,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册路由
+# 註冊路由
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
 app.include_router(events.router, prefix="/api/events", tags=["events"])

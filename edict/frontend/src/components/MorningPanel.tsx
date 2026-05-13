@@ -4,13 +4,13 @@ import { api } from '../api';
 import type { SubConfig, MorningNewsItem } from '../api';
 
 const CAT_META: Record<string, { icon: string; color: string; desc: string }> = {
-  '政治': { icon: '🏛️', color: '#6a9eff', desc: '全球政治动态' },
-  '军事': { icon: '⚔️', color: '#ff5270', desc: '军事与冲突' },
-  '经济': { icon: '💹', color: '#2ecc8a', desc: '经济与市场' },
-  'AI大模型': { icon: '🤖', color: '#a07aff', desc: 'AI与大模型进展' },
+  '政治': { icon: '🏛️', color: '#6a9eff', desc: '全球政治動態' },
+  '軍事': { icon: '⚔️', color: '#ff5270', desc: '軍事與衝突' },
+  '經濟': { icon: '💹', color: '#2ecc8a', desc: '經濟與市場' },
+  'AI大模型': { icon: '🤖', color: '#a07aff', desc: 'AI與大模型進展' },
 };
 
-const DEFAULT_CATS = ['政治', '军事', '经济', 'AI大模型'];
+const DEFAULT_CATS = ['政治', '軍事', '經濟', 'AI大模型'];
 
 export default function MorningPanel() {
   const morningBrief = useStore((s) => s.morningBrief);
@@ -22,7 +22,7 @@ export default function MorningPanel() {
   const [showConfig, setShowConfig] = useState(false);
   const [localConfig, setLocalConfig] = useState<SubConfig | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [refreshLabel, setRefreshLabel] = useState('⟳ 立即采集');
+  const [refreshLabel, setRefreshLabel] = useState('⟳ 立即採集');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function MorningPanel() {
 
   const refreshNews = async () => {
     setRefreshing(true);
-    setRefreshLabel('⟳ 采集中…');
+    setRefreshLabel('⟳ 採集中…');
     let lastDate: string | null = null;
     try {
       lastDate = morningBrief?.generated_at || null;
@@ -49,7 +49,7 @@ export default function MorningPanel() {
 
     try {
       await api.refreshMorning();
-      toast('采集已触发，自动检测更新中…', 'ok');
+      toast('採集已觸發，自動檢測更新中…', 'ok');
       let count = 0;
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = setInterval(async () => {
@@ -58,8 +58,8 @@ export default function MorningPanel() {
           clearInterval(pollRef.current!);
           pollRef.current = null;
           setRefreshing(false);
-          setRefreshLabel('⟳ 立即采集');
-          toast('采集超时，请重试', 'err');
+          setRefreshLabel('⟳ 立即採集');
+          toast('採集超時，請重試', 'err');
           return;
         }
         try {
@@ -68,18 +68,18 @@ export default function MorningPanel() {
             clearInterval(pollRef.current!);
             pollRef.current = null;
             setRefreshing(false);
-            setRefreshLabel('⟳ 立即采集');
+            setRefreshLabel('⟳ 立即採集');
             loadMorning();
-            toast('✅ 天下要闻已更新', 'ok');
+            toast('✅ 天下要聞已更新', 'ok');
           } else {
-            setRefreshLabel(`⟳ 采集中… (${count * 5}s)`);
+            setRefreshLabel(`⟳ 採集中… (${count * 5}s)`);
           }
         } catch { /* */ }
       }, 5000);
     } catch {
-      toast('触发失败', 'err');
+      toast('觸發失敗', 'err');
       setRefreshing(false);
-      setRefreshLabel('⟳ 立即采集');
+      setRefreshLabel('⟳ 立即採集');
     }
   };
 
@@ -109,7 +109,7 @@ export default function MorningPanel() {
 
   const addFeed = (name: string, url: string, category: string) => {
     if (!localConfig || !name || !url) {
-      toast('请填写源名称和URL', 'err');
+      toast('請填寫源名稱和URL', 'err');
       return;
     }
     const feeds = [...(localConfig.custom_feeds || [])];
@@ -129,13 +129,13 @@ export default function MorningPanel() {
     try {
       const r = await api.saveMorningConfig(localConfig);
       if (r.ok) {
-        toast('订阅配置已保存', 'ok');
+        toast('訂閱配置已保存', 'ok');
         loadSubConfig();
       } else {
-        toast(r.error || '保存失败', 'err');
+        toast(r.error || '保存失敗', 'err');
       }
     } catch {
-      toast('服务器连接失败', 'err');
+      toast('服務器連接失敗', 'err');
     }
   };
 
@@ -155,11 +155,11 @@ export default function MorningPanel() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>🌅 天下要闻</div>
+          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>🌅 天下要聞</div>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>
             {dateStr && `${dateStr} | `}
-            {morningBrief?.generated_at && `采集于 ${morningBrief.generated_at} | `}
-            共 {totalNews} 条要闻
+            {morningBrief?.generated_at && `採集於 ${morningBrief.generated_at} | `}
+            共 {totalNews} 條要聞
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -168,7 +168,7 @@ export default function MorningPanel() {
             onClick={() => setShowConfig(!showConfig)}
             style={{ fontSize: 12, padding: '6px 14px' }}
           >
-            ⚙ 订阅配置
+            ⚙ 訂閱配置
           </button>
           <button
             className="tpl-go"
@@ -198,7 +198,7 @@ export default function MorningPanel() {
 
       {/* News */}
       {!Object.keys(cats).length ? (
-        <div className="mb-empty">暂无数据，点击右上角「立即采集」获取今日简报</div>
+        <div className="mb-empty">暫無數據，點擊右上角「立即採集」獲取今日簡報</div>
       ) : (
         <div className="mb-cats">
           {Object.entries(cats).map(([cat, items]) => {
@@ -217,11 +217,11 @@ export default function MorningPanel() {
                 <div className="mb-cat-hdr">
                   <span className="mb-cat-icon">{meta.icon}</span>
                   <span className="mb-cat-name" style={{ color: meta.color }}>{cat}</span>
-                  <span className="mb-cat-cnt">{scored.length} 条</span>
+                  <span className="mb-cat-cnt">{scored.length} 條</span>
                 </div>
                 <div className="mb-news-list">
                   {!scored.length ? (
-                    <div className="mb-empty" style={{ padding: 16 }}>暂无新闻</div>
+                    <div className="mb-empty" style={{ padding: 16 }}>暫無新聞</div>
                   ) : (
                     scored.map((item, i) => {
                       const hasImg = !!(item.image && item.image.startsWith('http'));
@@ -260,7 +260,7 @@ export default function MorningPanel() {
                                     marginLeft: 4,
                                   }}
                                 >
-                                  ⭐ 关注
+                                  ⭐ 關注
                                 </span>
                               )}
                             </div>
@@ -319,11 +319,11 @@ function SubConfigPanel({
 
   return (
     <div className="sub-config" style={{ marginBottom: 20, padding: 16, background: 'var(--panel2)', borderRadius: 12, border: '1px solid var(--line)' }}>
-      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>⚙ 订阅配置</div>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>⚙ 訂閱配置</div>
 
       {/* Categories */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>订阅分类</div>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>訂閱分類</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {allCats.map((cat) => {
             const meta = CAT_META[cat] || { icon: '📰', color: 'var(--acc)', desc: cat };
@@ -346,7 +346,7 @@ function SubConfigPanel({
 
       {/* Keywords */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>关注关键词</div>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>關注關鍵詞</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
           {(config.keywords || []).map((kw, i) => (
             <span key={i} className="sub-kw" style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--line)' }}>
@@ -360,7 +360,7 @@ function SubConfigPanel({
             type="text"
             value={newKw}
             onChange={(e) => setNewKw(e.target.value)}
-            placeholder="输入关键词"
+            placeholder="輸入關鍵詞"
             onKeyDown={(e) => { if (e.key === 'Enter') { onAddKeyword(newKw.trim()); setNewKw(''); } }}
             style={{ flex: 1, padding: '6px 10px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 6, color: 'var(--text)', fontSize: 12, outline: 'none' }}
           />
@@ -372,7 +372,7 @@ function SubConfigPanel({
 
       {/* Custom Feeds */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>自定义信息源</div>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>自定義信息源</div>
         {(config.custom_feeds || []).map((f, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4, fontSize: 11 }}>
             <span style={{ fontWeight: 600 }}>{f.name}</span>
@@ -382,7 +382,7 @@ function SubConfigPanel({
           </div>
         ))}
         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-          <input placeholder="源名称" value={feedName} onChange={(e) => setFeedName(e.target.value)}
+          <input placeholder="源名稱" value={feedName} onChange={(e) => setFeedName(e.target.value)}
             style={{ width: 100, padding: '6px 8px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 6, color: 'var(--text)', fontSize: 11, outline: 'none' }} />
           <input placeholder="RSS / URL" value={feedUrl} onChange={(e) => setFeedUrl(e.target.value)}
             style={{ flex: 1, padding: '6px 8px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 6, color: 'var(--text)', fontSize: 11, outline: 'none' }} />
@@ -398,7 +398,7 @@ function SubConfigPanel({
 
       {/* Feishu Webhook */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>飞书 Webhook</div>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>飛書 Webhook</div>
         <input
           type="text"
           value={config.feishu_webhook || ''}

@@ -1,4 +1,4 @@
-"""Admin API — 管理操作（迁移、诊断、配置）。"""
+"""Admin API — 管理操作（遷移、診斷、配置）。"""
 
 import json
 import logging
@@ -17,7 +17,7 @@ router = APIRouter()
 
 @router.get("/health/deep")
 async def deep_health(db: AsyncSession = Depends(get_db)):
-    """深度健康检查：Postgres + Redis 连通性。"""
+    """深度健康檢查：Postgres + Redis 連通性。"""
     checks = {"postgres": False, "redis": False}
 
     # Postgres
@@ -45,7 +45,7 @@ async def pending_events(
     group: str = "dispatcher",
     count: int = 20,
 ):
-    """查看未 ACK 的 pending 事件（诊断工具）。"""
+    """查看未 ACK 的 pending 事件（診斷工具）。"""
     bus = await get_event_bus()
     pending = await bus.get_pending(topic, group, count)
     return {
@@ -65,7 +65,7 @@ async def pending_events(
 
 @router.post("/migrate/check")
 async def migration_check():
-    """检查旧数据文件是否存在。"""
+    """檢查舊數據文件是否存在。"""
     data_dir = Path(__file__).parents[4] / "data"
     files = {
         "tasks_source": (data_dir / "tasks_source.json").exists(),
@@ -78,7 +78,7 @@ async def migration_check():
 
 @router.get("/config")
 async def get_config():
-    """获取当前运行配置（脱敏）。"""
+    """獲取當前運行配置（脫敏）。"""
     from ..config import get_settings
     settings = get_settings()
     return {

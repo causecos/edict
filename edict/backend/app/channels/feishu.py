@@ -10,7 +10,7 @@ from .base import NotificationChannel
 
 class FeishuChannel(NotificationChannel):
     name: ClassVar[str] = 'feishu'
-    label: ClassVar[str] = '飞书 Feishu'
+    label: ClassVar[str] = '飛書 Feishu'
     icon: ClassVar[str] = '💬'
     placeholder: ClassVar[str] = 'https://open.feishu.cn/open-apis/bot/v2/hook/...'
     allowed_domains: ClassVar[tuple[str, ...]] = ('open.feishu.cn', 'open.larksuite.com')
@@ -32,7 +32,7 @@ class FeishuChannel(NotificationChannel):
                 'tag': 'action',
                 'actions': [{
                     'tag': 'button',
-                    'text': {'tag': 'plain_text', 'content': '查看详情'},
+                    'text': {'tag': 'plain_text', 'content': '查看詳情'},
                     'url': url,
                     'type': 'primary'
                 }]

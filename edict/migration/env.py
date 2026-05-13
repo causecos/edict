@@ -15,7 +15,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# 导入所有模型以注册 metadata
+# 導入所有模型以註冊 metadata
 import sys
 import os
 
@@ -27,7 +27,7 @@ from app.db import Base
 target_metadata = Base.metadata
 settings = get_settings()
 
-# Alembic 默认回退到本地配置，但运行时优先使用 Settings / DATABASE_URL。
+# Alembic 默認回退到本地配置，但運行時優先使用 Settings / DATABASE_URL。
 config.set_main_option("sqlalchemy.url", settings.database_url_sync)
 
 

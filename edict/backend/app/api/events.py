@@ -1,4 +1,4 @@
-"""Events API — 事件查询与审计。"""
+"""Events API — 事件查詢與審計。"""
 from __future__ import annotations
 
 import logging
@@ -25,7 +25,7 @@ async def list_events(
     limit: int = Query(default=50, le=500),
     db: AsyncSession = Depends(get_db),
 ):
-    """查询持久化事件（从 Postgres event 表）。"""
+    """查詢持久化事件（從 Postgres event 表）。"""
     stmt = select(Event)
     if trace_id:
         stmt = stmt.where(Event.trace_id == trace_id)
@@ -56,7 +56,7 @@ async def list_events(
 
 @router.get("/stream-info")
 async def stream_info(topic: str = Query(description="Stream topic")):
-    """查询 Redis Stream 实时信息。"""
+    """查詢 Redis Stream 實時信息。"""
     bus = await get_event_bus()
     info = await bus.stream_info(topic)
     return {"topic": topic, "info": info}
@@ -76,11 +76,11 @@ async def list_topics():
     )
     return {
         "topics": [
-            {"name": TOPIC_TASK_CREATED, "description": "任务创建"},
-            {"name": TOPIC_TASK_STATUS, "description": "状态变更"},
-            {"name": TOPIC_TASK_DISPATCH, "description": "Agent 派发"},
-            {"name": TOPIC_TASK_COMPLETED, "description": "任务完成"},
-            {"name": TOPIC_TASK_STALLED, "description": "任务停滞"},
+            {"name": TOPIC_TASK_CREATED, "description": "任務創建"},
+            {"name": TOPIC_TASK_STATUS, "description": "狀態變更"},
+            {"name": TOPIC_TASK_DISPATCH, "description": "Agent 派發"},
+            {"name": TOPIC_TASK_COMPLETED, "description": "任務完成"},
+            {"name": TOPIC_TASK_STALLED, "description": "任務停滯"},
             {"name": TOPIC_AGENT_THOUGHTS, "description": "Agent 思考流"},
             {"name": TOPIC_AGENT_HEARTBEAT, "description": "Agent 心跳"},
         ]

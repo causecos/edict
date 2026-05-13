@@ -79,7 +79,7 @@ def _resolve_api_url_and_token(base_url: str) -> tuple[str, str]:
 
 class QQChannel(NotificationChannel):
     name: ClassVar[str] = "qq"
-    label: ClassVar[str] = "QQ 机器人"
+    label: ClassVar[str] = "QQ 機器人"
     icon: ClassVar[str] = "🐧"
     placeholder: ClassVar[str] = (
         "https://api.sgroup.qq.com/v2/users/{openid}/messages?appid=XXX&secret=YYY"

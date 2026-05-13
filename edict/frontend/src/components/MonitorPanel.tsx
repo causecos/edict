@@ -27,9 +27,9 @@ export default function MonitorPanel() {
   const handleWake = async (agentId: string) => {
     try {
       const r = await api.agentWake(agentId);
-      toast(r.message || '唤醒指令已发出');
+      toast(r.message || '喚醒指令已發出');
       setTimeout(() => loadAgentsStatus(), 30000);
-    } catch { toast('唤醒失败', 'err'); }
+    } catch { toast('喚醒失敗', 'err'); }
   };
 
   const handleWakeAll = async () => {
@@ -37,12 +37,12 @@ export default function MonitorPanel() {
     const toWake = agentsStatusData.agents.filter(
       (a) => a.id !== 'main' && a.status !== 'running' && a.status !== 'unconfigured'
     );
-    if (!toWake.length) { toast('所有 Agent 均已在线'); return; }
-    toast(`正在唤醒 ${toWake.length} 个 Agent...`);
+    if (!toWake.length) { toast('所有 Agent 均已在線'); return; }
+    toast(`正在喚醒 ${toWake.length} 個 Agent...`);
     for (const a of toWake) {
       try { await api.agentWake(a.id); } catch { /* ignore */ }
     }
-    toast(`${toWake.length} 个唤醒指令已发出，30秒后刷新状态`);
+    toast(`${toWake.length} 個喚醒指令已發出，30秒後刷新狀態`);
     setTimeout(() => loadAgentsStatus(), 30000);
   };
 
@@ -62,14 +62,14 @@ export default function MonitorPanel() {
       {asData && asData.ok && (
         <div className="as-panel">
           <div className="as-header">
-            <span className="as-title">🔌 Agent 在线状态</span>
+            <span className="as-title">🔌 Agent 在線狀態</span>
             <span className={`as-gw ${gwCls}`}>Gateway: {gw?.status || '未知'}</span>
             <button className="btn-refresh" onClick={() => loadAgentsStatus()} style={{ marginLeft: 8 }}>
               🔄 刷新
             </button>
             {(offline + unconf > 0) && (
               <button className="btn-refresh" onClick={handleWakeAll} style={{ marginLeft: 4, borderColor: 'var(--warn)', color: 'var(--warn)' }}>
-                ⚡ 全部唤醒
+                ⚡ 全部喚醒
               </button>
             )}
           </div>
@@ -86,11 +86,11 @@ export default function MonitorPanel() {
                   {a.lastActive ? (
                     <div style={{ fontSize: 10, color: 'var(--muted)' }}>⏰ {a.lastActive}</div>
                   ) : (
-                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>无活动记录</div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>無活動記錄</div>
                   )}
                   {canWake && (
                     <button className="as-wake-btn" onClick={(e) => { e.stopPropagation(); handleWake(a.id); }}>
-                      ⚡ 唤醒
+                      ⚡ 喚醒
                     </button>
                   )}
                 </div>
@@ -98,12 +98,12 @@ export default function MonitorPanel() {
             })}
           </div>
           <div className="as-summary">
-            <span><span className="as-dot running" style={{ position: 'static', width: 8, height: 8 }} /> {running} 运行中</span>
+            <span><span className="as-dot running" style={{ position: 'static', width: 8, height: 8 }} /> {running} 運行中</span>
             <span><span className="as-dot idle" style={{ position: 'static', width: 8, height: 8 }} /> {idle} 待命</span>
-            {offline > 0 && <span><span className="as-dot offline" style={{ position: 'static', width: 8, height: 8 }} /> {offline} 离线</span>}
+            {offline > 0 && <span><span className="as-dot offline" style={{ position: 'static', width: 8, height: 8 }} /> {offline} 離線</span>}
             {unconf > 0 && <span><span className="as-dot unconfigured" style={{ position: 'static', width: 8, height: 8 }} /> {unconf} 未配置</span>}
             <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--muted)' }}>
-              检测于 {(asData.checkedAt || '').substring(11, 19)}
+              檢測於 {(asData.checkedAt || '').substring(11, 19)}
             </span>
           </div>
         </div>
@@ -118,7 +118,7 @@ export default function MonitorPanel() {
           const off = offMap[d.id];
           const hb = off?.heartbeat || { status: 'idle', label: '⚪' };
           const dotCls = isBlocked ? 'blocked' : isActive ? 'busy' : hb.status === 'active' ? 'active' : 'idle';
-          const statusText = isBlocked ? '⚠️ 阻塞' : isActive ? '⚙️ 执行中' : hb.status === 'active' ? '🟢 活跃' : '⚪ 候命';
+          const statusText = isBlocked ? '⚠️ 阻塞' : isActive ? '⚙️ 執行中' : hb.status === 'active' ? '🟢 活躍' : '⚪ 候命';
           const cardCls = isBlocked ? 'blocked-card' : isActive ? 'active-card' : '';
 
           return (
@@ -139,13 +139,13 @@ export default function MonitorPanel() {
                   myTasks.map((t) => (
                     <div key={t.id} className="dc-task" onClick={() => setModalTaskId(t.id)}>
                       <div className="dc-task-id">{t.id}</div>
-                      <div className="dc-task-title">{t.title || '(无标题)'}</div>
+                      <div className="dc-task-title">{t.title || '(無標題)'}</div>
                       {t.now && t.now !== '-' && (
                         <div className="dc-task-now">{t.now.substring(0, 70)}</div>
                       )}
                       <div className="dc-task-meta">
                         <span className={`tag st-${t.state}`}>{stateLabel(t)}</span>
-                        {t.block && t.block !== '无' && (
+                        {t.block && t.block !== '無' && (
                           <span className="tag" style={{ borderColor: '#ff527044', color: 'var(--danger)' }}>🚫{t.block}</span>
                         )}
                       </div>

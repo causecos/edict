@@ -1,4 +1,4 @@
-"""Tasks API — 任务的 CRUD 和状态流转。"""
+"""Tasks API — 任務的 CRUD 和狀態流轉。"""
 from __future__ import annotations
 
 import uuid
@@ -70,7 +70,7 @@ class TaskOut(BaseModel):
         from_attributes = True
 
 
-# ── 依赖注入 helper ──
+# ── 依賴注入 helper ──
 
 async def get_task_service(
     db: AsyncSession = Depends(get_db),
@@ -90,7 +90,7 @@ async def list_tasks(
     offset: int = Query(default=0, ge=0),
     svc: TaskService = Depends(get_task_service),
 ):
-    """获取任务列表。"""
+    """獲取任務列表。"""
     task_state = TaskState(state) if state else None
     tasks = await svc.list_tasks(
         state=task_state,
@@ -104,13 +104,13 @@ async def list_tasks(
 
 @router.get("/live-status")
 async def live_status(svc: TaskService = Depends(get_task_service)):
-    """兼容旧 live_status.json 格式的全局状态。"""
+    """兼容舊 live_status.json 格式的全局狀態。"""
     return await svc.get_live_status()
 
 
 @router.get("/stats")
 async def task_stats(svc: TaskService = Depends(get_task_service)):
-    """任务统计。"""
+    """任務統計。"""
     stats = {}
     for s in TaskState:
         stats[s.value] = await svc.count_tasks(s)
@@ -123,7 +123,7 @@ async def create_task(
     body: TaskCreate,
     svc: TaskService = Depends(get_task_service),
 ):
-    """创建新任务。"""
+    """創建新任務。"""
     task = await svc.create_task(
         title=body.title,
         description=body.description,
@@ -141,7 +141,7 @@ async def get_task(
     task_id: uuid.UUID,
     svc: TaskService = Depends(get_task_service),
 ):
-    """获取任务详情。"""
+    """獲取任務詳情。"""
     try:
         task = await svc.get_task(task_id)
         return task.to_dict()
@@ -155,7 +155,7 @@ async def transition_task(
     body: TaskTransition,
     svc: TaskService = Depends(get_task_service),
 ):
-    """执行状态流转。"""
+    """執行狀態流轉。"""
     try:
         new_state = TaskState(body.new_state)
     except ValueError:
@@ -176,11 +176,11 @@ async def transition_task(
 @router.post("/{task_id}/dispatch")
 async def dispatch_task(
     task_id: uuid.UUID,
-    agent: str = Query(description="目标 agent"),
-    message: str = Query(default="", description="派发消息"),
+    agent: str = Query(description="目標 agent"),
+    message: str = Query(default="", description="派發消息"),
     svc: TaskService = Depends(get_task_service),
 ):
-    """手动派发任务给指定 agent。"""
+    """手動派發任務給指定 agent。"""
     try:
         await svc.request_dispatch(task_id, agent, message)
         return {"message": "dispatch requested", "agent": agent}
@@ -194,7 +194,7 @@ async def add_progress(
     body: TaskProgress,
     svc: TaskService = Depends(get_task_service),
 ):
-    """添加进度记录。"""
+    """添加進度記錄。"""
     try:
         await svc.add_progress(task_id, body.agent, body.content)
         return {"message": "ok"}
@@ -208,7 +208,7 @@ async def update_todos(
     body: TaskTodoUpdate,
     svc: TaskService = Depends(get_task_service),
 ):
-    """更新任务 TODO 清单。"""
+    """更新任務 TODO 清單。"""
     try:
         await svc.update_todos(task_id, body.todos)
         return {"message": "ok"}
@@ -222,7 +222,7 @@ async def update_scheduler(
     body: TaskSchedulerUpdate,
     svc: TaskService = Depends(get_task_service),
 ):
-    """更新任务排期信息。"""
+    """更新任務排期信息。"""
     try:
         await svc.update_scheduler(task_id, body.scheduler)
         return {"message": "ok"}

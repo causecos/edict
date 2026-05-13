@@ -1,9 +1,9 @@
-"""Redis Streams 事件总线 — 可靠的事件发布/消费。
+"""Redis Streams 事件總線 — 可靠的事件發布/消費。
 
 核心能力：
-- publish: XADD 发布事件到 stream
-- subscribe: XREADGROUP 消费者组消费，带 ACK 保证from __future__ import annotations- 未 ACK 的事件在消费者崩溃后会被自动重新投递
-- 解决旧架构 daemon 线程丢失导致派发永久中断的根因
+- publish: XADD 發布事件到 stream
+- subscribe: XREADGROUP 消費者組消費，帶 ACK 保證from __future__ import annotations- 未 ACK 的事件在消費者崩潰後會被自動重新投遞
+- 解決舊架構 daemon 線程丟失導致派發永久中斷的根因
 """
 
 import json
@@ -18,7 +18,7 @@ from ..config import get_settings
 
 log = logging.getLogger("edict.event_bus")
 
-# ── 标准 Topic 常量 ──
+# ── 標準 Topic 常量 ──
 TOPIC_TASK_CREATED = "task.created"
 TOPIC_TASK_PLANNING_REQUEST = "task.planning.request"
 TOPIC_TASK_PLANNING_COMPLETE = "task.planning.complete"
@@ -36,19 +36,19 @@ TOPIC_AGENT_THOUGHTS = "agent.thoughts"
 TOPIC_AGENT_TODO_UPDATE = "agent.todo.update"
 TOPIC_AGENT_HEARTBEAT = "agent.heartbeat"
 
-# 所有 topic 对应的 Redis Stream key 前缀
+# 所有 topic 對應的 Redis Stream key 前綴
 STREAM_PREFIX = "edict:stream:"
 
 
 class EventBus:
-    """Redis Streams 事件总线。"""
+    """Redis Streams 事件總線。"""
 
     def __init__(self, redis_url: str | None = None):
         self._redis_url = redis_url or get_settings().redis_url
         self._redis: aioredis.Redis | None = None
 
     async def connect(self):
-        """建立 Redis 连接。"""
+        """建立 Redis 連接。"""
         if self._redis is None:
             self._redis = aioredis.from_url(
                 self._redis_url,
@@ -79,10 +79,10 @@ class EventBus:
         payload: dict[str, Any] | None = None,
         meta: dict[str, Any] | None = None,
     ) -> str:
-        """发布事件到 Redis Stream。
+        """發布事件到 Redis Stream。
 
         Returns:
-            event_id (str): 由 Redis 自动生成的 Stream entry ID
+            event_id (str): 由 Redis 自動生成的 Stream entry ID
         """
         event = {
             "event_id": str(uuid.uuid4()),
@@ -98,13 +98,13 @@ class EventBus:
         entry_id = await self.redis.xadd(stream_key, event, maxlen=10000)
         log.debug(f"📤 Published {topic}/{event_type} → {stream_key} [{entry_id}] trace={trace_id}")
 
-        # 同时发布到 Pub/Sub 频道（供 WebSocket 实时推送）
+        # 同時發布到 Pub/Sub 頻道（供 WebSocket 實時推送）
         await self.redis.publish(f"edict:pubsub:{topic}", json.dumps(event, ensure_ascii=False))
 
         return entry_id
 
     async def ensure_consumer_group(self, topic: str, group: str):
-        """确保消费者组存在（幂等）。"""
+        """確保消費者組存在（冪等）。"""
         stream_key = self._stream_key(topic)
         try:
             await self.redis.xgroup_create(stream_key, group, id="0", mkstream=True)
@@ -121,7 +121,7 @@ class EventBus:
         count: int = 10,
         block_ms: int = 5000,
     ) -> list[tuple[str, dict]]:
-        """从消费者组消费事件。
+        """從消費者組消費事件。
 
         Returns:
             list of (entry_id, event_dict)
@@ -147,13 +147,13 @@ class EventBus:
         return events
 
     async def ack(self, topic: str, group: str, entry_id: str):
-        """确认消费 — ACK 后事件不会被重新投递。"""
+        """確認消費 — ACK 後事件不會被重新投遞。"""
         stream_key = self._stream_key(topic)
         await self.redis.xack(stream_key, group, entry_id)
         log.debug(f"✅ ACK {stream_key} [{entry_id}] group={group}")
 
     async def get_pending(self, topic: str, group: str, count: int = 10) -> list:
-        """查看未 ACK 的 pending 事件（用于诊断和恢复）。"""
+        """查看未 ACK 的 pending 事件（用於診斷和恢復）。"""
         stream_key = self._stream_key(topic)
         return await self.redis.xpending_range(stream_key, group, min="-", max="+", count=count)
 
@@ -165,7 +165,7 @@ class EventBus:
         min_idle_ms: int = 60000,
         count: int = 10,
     ) -> list[tuple[str, dict]]:
-        """认领超时的 pending 事件（消费者崩溃恢复）。"""
+        """認領超時的 pending 事件（消費者崩潰恢復）。"""
         stream_key = self._stream_key(topic)
         results = await self.redis.xautoclaim(
             stream_key, group, consumer, min_idle_time=min_idle_ms, start_id="0-0", count=count
@@ -183,7 +183,7 @@ class EventBus:
         return []
 
     async def stream_info(self, topic: str) -> dict:
-        """获取 Stream 信息（长度、消费者组等）。"""
+        """獲取 Stream 信息（長度、消費者組等）。"""
         stream_key = self._stream_key(topic)
         try:
             info = await self.redis.xinfo_stream(stream_key)
@@ -199,7 +199,7 @@ class EventBus:
         count: int = 10,
         block_ms: int = 2000,
     ) -> list[tuple[str, str, dict]]:
-        """从多个 topic 同时消费事件（单次 XREADGROUP 多 stream）。
+        """從多個 topic 同時消費事件（單次 XREADGROUP 多 stream）。
 
         Returns:
             list of (topic, entry_id, event_dict)
@@ -230,9 +230,9 @@ class EventBus:
         self,
         events: list[dict],
     ) -> list[str]:
-        """批量发布事件（pipeline 模式，减少 RTT）。
+        """批量發布事件（pipeline 模式，減少 RTT）。
 
-        每个 event dict 须包含: topic, trace_id, event_type, producer, payload, meta(可选)
+        每個 event dict 須包含: topic, trace_id, event_type, producer, payload, meta(可選)
         Returns:
             list of entry_ids
         """
@@ -253,25 +253,25 @@ class EventBus:
             pipe.xadd(stream_key, event_data, maxlen=10000)
             pipe.publish(f"edict:pubsub:{topic}", json.dumps(event_data, ensure_ascii=False))
         results = await pipe.execute()
-        # 每个事件产生 2 个 pipeline 命令 (xadd + publish)，entry_id 在偶数位
+        # 每個事件產生 2 個 pipeline 命令 (xadd + publish)，entry_id 在偶數位
         entry_ids = [results[i] for i in range(0, len(results), 2)]
         log.debug(f"📤 Batch published {len(events)} events")
         return entry_ids
 
     async def get_delivery_count(self, topic: str, group: str, entry_id: str) -> int:
-        """获取某条消息的累计投递次数。"""
+        """獲取某條消息的累計投遞次數。"""
         stream_key = self._stream_key(topic)
-        # XPENDING <stream> <group> <start> <end> <count> 返回每条消息的详情
+        # XPENDING <stream> <group> <start> <end> <count> 返回每條消息的詳情
         pending = await self.redis.xpending_range(
             stream_key, group, min=entry_id, max=entry_id, count=1
         )
         if pending:
-            # 每条 pending 条目格式: {message_id, consumer, idle_time, delivery_count}
+            # 每條 pending 條目格式: {message_id, consumer, idle_time, delivery_count}
             return pending[0].get("times_delivered", 0)
         return 0
 
 
-# ── 全局单例 ──
+# ── 全局單例 ──
 _bus: EventBus | None = None
 
 

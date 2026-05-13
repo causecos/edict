@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-三省六部 · 看板本地 API 服务器
-Port: 7891 (可通过 --port 修改)
+三省六部 · 看板本地 API 服務器
+Port: 7891 (可通過 --port 修改)
 
 Endpoints:
   GET  /                       → dashboard.html
@@ -16,16 +16,17 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-# JWT 认证模块
+# JWT 認證模塊
 from auth import init as auth_init, requires_auth, extract_token, verify_token, \
     is_enabled as auth_enabled, is_configured as auth_configured, \
     setup_password, verify_password, create_token
 
-# 引入文件锁工具，确保与其他脚本并发安全
+# 引入文件鎖工具，確保與其他腳本並發安全
 scripts_dir = str(pathlib.Path(__file__).parent.parent / 'scripts')
 sys.path.insert(0, scripts_dir)
 from file_lock import atomic_json_read, atomic_json_write, atomic_json_update
 from utils import validate_url, read_json, now_iso, python_bin
+from kanban_update import create_task_from_intent, set_task_state, record_task_flow
 from court_discuss import (
     create_session as cd_create, advance_discussion as cd_advance,
     get_session as cd_get, conclude_session as cd_conclude,
@@ -52,12 +53,18 @@ _DEFAULT_ORIGINS = {
 _SAFE_NAME_RE = re.compile(r'^[a-zA-Z0-9_\-\u4e00-\u9fff]+$')
 
 BASE = pathlib.Path(__file__).parent
-DIST = BASE / 'dist'          # React 构建产物 (npm run build)
+DIST = BASE / 'dist'          # React 構建產物 (npm run build)
 DATA = BASE.parent / "data"
 SCRIPTS = BASE.parent / 'scripts'
 _ACTIVE_TASK_DATA_DIR = None
+TASK_SOURCE_MODE_FILE = DATA / 'task_source_mode.json'
+DEFAULT_TASK_SOURCE_MODE = {
+    'mode': 'db',  # auto|json|db
+    'backendApiBase': 'http://127.0.0.1:8000',
+    'timeoutMs': 3000,
+}
 
-# 静态资源 MIME 类型
+# 靜態資源 MIME 類型
 _MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
     '.js':   'application/javascript; charset=utf-8',
@@ -90,7 +97,7 @@ def cors_headers(h):
 
 
 def _iter_task_data_dirs():
-    """返回可用的任务数据目录候选（优先 workspace，其次本地 data）。"""
+    """返回可用的任務數據目錄候選（優先 workspace，其次本地 data）。"""
     dirs = [DATA]
     for p in sorted(OCLAW_HOME.glob('workspace-*/data')):
         if p.is_dir():
@@ -99,7 +106,7 @@ def _iter_task_data_dirs():
 
 
 def _task_source_score(task_file: pathlib.Path):
-    """给任务源打分：优先非 demo 任务，其次任务数，再按文件更新时间。"""
+    """給任務源打分：優先非 demo 任務，其次任務數，再按文件更新時間。"""
     try:
         tasks = atomic_json_read(task_file, [])
     except Exception:
@@ -115,7 +122,7 @@ def _task_source_score(task_file: pathlib.Path):
 
 
 def get_task_data_dir():
-    """自动选择当前任务数据目录，并缓存结果以保持一次服务期内稳定。"""
+    """自動選擇當前任務數據目錄，並緩存結果以保持一次服務期內穩定。"""
     global _ACTIVE_TASK_DATA_DIR
     if _ACTIVE_TASK_DATA_DIR and _ACTIVE_TASK_DATA_DIR.is_dir():
         return _ACTIVE_TASK_DATA_DIR
@@ -130,13 +137,193 @@ def get_task_data_dir():
             best_score = score
             best_dir = d
     _ACTIVE_TASK_DATA_DIR = best_dir
-    log.info(f'任务数据源: {_ACTIVE_TASK_DATA_DIR}')
+    log.info(f'任務數據源: {_ACTIVE_TASK_DATA_DIR}')
     return _ACTIVE_TASK_DATA_DIR
 
 
 def load_tasks():
     task_data_dir = get_task_data_dir()
     return atomic_json_read(task_data_dir / 'tasks_source.json', [])
+
+
+def _normalize_task_source_mode(cfg):
+    """清洗來源模式配置，防止配置污染。"""
+    if not isinstance(cfg, dict):
+        cfg = {}
+    mode = str(cfg.get('mode') or DEFAULT_TASK_SOURCE_MODE['mode']).lower().strip()
+    if mode not in ('auto', 'json', 'db'):
+        mode = 'auto'
+
+    base = str(cfg.get('backendApiBase') or DEFAULT_TASK_SOURCE_MODE['backendApiBase']).strip().rstrip('/')
+    if not base.startswith('http://') and not base.startswith('https://'):
+        base = DEFAULT_TASK_SOURCE_MODE['backendApiBase']
+
+    try:
+        timeout_ms = int(cfg.get('timeoutMs', DEFAULT_TASK_SOURCE_MODE['timeoutMs']))
+    except Exception:
+        timeout_ms = DEFAULT_TASK_SOURCE_MODE['timeoutMs']
+    timeout_ms = max(500, min(timeout_ms, 15000))
+
+    return {
+        'mode': mode,
+        'backendApiBase': base,
+        'timeoutMs': timeout_ms,
+    }
+
+
+def _load_task_source_mode():
+    """加載看板資料來源模式配置。"""
+    cfg = atomic_json_read(TASK_SOURCE_MODE_FILE, DEFAULT_TASK_SOURCE_MODE.copy())
+    return _normalize_task_source_mode(cfg)
+
+
+def _save_task_source_mode(cfg):
+    """保存看板資料來源模式配置。"""
+    atomic_json_write(TASK_SOURCE_MODE_FILE, _normalize_task_source_mode(cfg))
+
+
+def _backend_health(cfg=None):
+    """檢測 backend API 健康。"""
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    health_url = cfg['backendApiBase'] + '/health'
+    try:
+        req = Request(health_url, headers={'Accept': 'application/json'})
+        with urlopen(req, timeout=max(1, cfg['timeoutMs'] / 1000)) as resp:
+            raw = resp.read().decode('utf-8', errors='replace')
+            payload = json.loads(raw) if raw else {}
+            return {
+                'ok': resp.status == 200,
+                'statusCode': resp.status,
+                'payload': payload,
+                'url': health_url,
+            }
+    except Exception as e:
+        return {
+            'ok': False,
+            'statusCode': 0,
+            'error': str(e),
+            'url': health_url,
+        }
+
+
+def _effective_source_mode(cfg, backend_ok=None):
+    """根據 mode+backend 健康度推斷實際使用模式。"""
+    mode = (cfg or {}).get('mode', 'auto')
+    if mode != 'auto':
+        return mode
+    return 'db' if bool(backend_ok) else 'json'
+
+
+def _fetch_backend_live_status(cfg):
+    """從 edict backend 讀取 DB 路線 live-status。"""
+    url = cfg['backendApiBase'] + '/api/tasks/live-status'
+    req = Request(url, headers={'Accept': 'application/json'})
+    with urlopen(req, timeout=max(1, cfg['timeoutMs'] / 1000)) as resp:
+        raw = resp.read().decode('utf-8', errors='replace')
+        data = json.loads(raw) if raw else {}
+        if not isinstance(data, dict):
+            raise ValueError('backend live-status is not JSON object')
+        return data
+
+
+def _normalize_backend_live_status(payload):
+    """把 backend /api/tasks/live-status 轉成 dashboard 可用結構。"""
+    tasks = payload.get('tasks', {})
+    completed = payload.get('completed_tasks', {})
+    merged = []
+
+    if isinstance(tasks, dict):
+        merged.extend(tasks.values())
+    elif isinstance(tasks, list):
+        merged.extend(tasks)
+
+    if isinstance(completed, dict):
+        merged.extend(completed.values())
+    elif isinstance(completed, list):
+        merged.extend(completed)
+
+    by_id = {}
+    for t in merged:
+        if not isinstance(t, dict):
+            continue
+        tid = str(t.get('id') or t.get('task_id') or '').strip()
+        if not tid:
+            continue
+        if tid not in by_id:
+            by_id[tid] = t
+
+    def _ts(x):
+        return x.get('updatedAt') or x.get('updated_at') or ''
+
+    arr = sorted(by_id.values(), key=_ts, reverse=True)
+    return {
+        'tasks': arr,
+        'lastSyncAt': payload.get('last_updated') or now_iso(),
+        'source': 'db-api',
+    }
+
+
+def _live_status_from_json():
+    """走舊 JSON 路線讀取 live_status。"""
+    task_data_dir = get_task_data_dir()
+    data = read_json(task_data_dir / 'live_status.json', {'tasks': []})
+    if not isinstance(data, dict):
+        data = {'tasks': []}
+    data.setdefault('source', 'json')
+    return data
+
+
+def _inject_source_meta(payload, meta):
+    """在 payload 注入來源元信息。"""
+    if not isinstance(payload, dict):
+        payload = {'tasks': []}
+    payload['_sourceMeta'] = meta
+    return payload
+
+
+def get_live_status_with_mode():
+    """按 mode 開關選擇資料來源：json / db / auto。
+
+    規則：
+    - db: 嚴格走 DB API，失敗直接回錯誤（不自動切 json）
+    - auto: 也先檢查 DB，若失敗回錯誤並要求人工處置（保持一致性）
+    - json: 僅在明確指定時使用
+    """
+    cfg = _load_task_source_mode()
+    mode = cfg['mode']
+
+    if mode == 'json':
+        return _inject_source_meta(_live_status_from_json(), {
+            'configured': mode,
+            'effective': 'json',
+            'backendApiBase': cfg['backendApiBase'],
+            'fallback': None,
+        })
+
+    # db / auto 都先走 DB，失敗不自動降級
+    try:
+        db_payload = _fetch_backend_live_status(cfg)
+        return _inject_source_meta(_normalize_backend_live_status(db_payload), {
+            'configured': mode,
+            'effective': 'db',
+            'backendApiBase': cfg['backendApiBase'],
+            'fallback': None,
+        })
+    except Exception as e:
+        health = _backend_health(cfg)
+        return {
+            'tasks': [],
+            'source': 'db-api',
+            'error': f'db source failed: {e}',
+            'action': '請先排查 DB/API 連通後再重試；不要直接切回 json。',
+            '_sourceMeta': {
+                'configured': mode,
+                'effective': 'db',
+                'backendApiBase': cfg['backendApiBase'],
+                'fallback': None,
+                'backendHealth': health,
+            }
+        }
 
 
 def save_tasks(tasks):
@@ -156,7 +343,7 @@ def _trigger_refresh():
         try:
             subprocess.run([python_bin(), str(script)], timeout=30)
         except Exception as e:
-            log.warning(f'refresh_live_data.py 触发失败: {e}')
+            log.warning(f'refresh_live_data.py 觸發失敗: {e}')
     threading.Thread(target=_refresh, daemon=True).start()
 
 
@@ -202,47 +389,51 @@ def handle_task_action(task_id, action, reason):
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
-        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
 
     old_state = task.get('state', '')
     _ensure_scheduler(task)
     _scheduler_snapshot(task, f'task-action-before-{action}')
 
     if action == 'stop':
-        task['state'] = 'Blocked'
-        task['block'] = reason or '皇上叫停'
-        task['now'] = f'⏸️ 已暂停：{reason}'
+        new_state = 'Blocked'
+        now_text = f'⏸️ 已暫停：{reason}'
+        flow_remark = f'⏸️ 叫停：{reason}'
     elif action == 'cancel':
-        task['state'] = 'Cancelled'
-        task['block'] = reason or '皇上取消'
-        task['now'] = f'🚫 已取消：{reason}'
+        new_state = 'Cancelled'
+        now_text = f'🚫 已取消：{reason}'
+        flow_remark = f'🚫 取消：{reason}'
     elif action == 'resume':
         # Resume to previous active state or Doing
-        task['state'] = task.get('_prev_state', 'Doing')
-        task['block'] = '无'
-        task['now'] = f'▶️ 已恢复执行'
+        new_state = task.get('_prev_state', 'Doing')
+        now_text = '▶️ 已恢復執行'
+        flow_remark = f'▶️ 恢復：{reason}'
+
+    # 統一狀態/流轉寫入入口
+    set_task_state(task_id, new_state, now_text)
+    record_task_flow(task_id, '皇上', task.get('org', ''), flow_remark)
+
+    # Dashboard 擴展欄位
+    tasks2 = load_tasks()
+    task2 = next((t for t in tasks2 if t.get('id') == task_id), None)
+    if not task2:
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
 
     if action in ('stop', 'cancel'):
-        task['_prev_state'] = old_state  # Save for resume
-
-    task.setdefault('flow_log', []).append({
-        'at': now_iso(),
-        'from': '皇上',
-        'to': task.get('org', ''),
-        'remark': f'{"⏸️ 叫停" if action == "stop" else "🚫 取消" if action == "cancel" else "▶️ 恢复"}：{reason}'
-    })
+        task2['_prev_state'] = old_state  # Save for resume
+        task2['block'] = reason or ('皇上叫停' if action == 'stop' else '皇上取消')
+    elif action == 'resume':
+        task2['block'] = '無'
 
     if action == 'resume':
-        _scheduler_mark_progress(task, f'恢复到 {task.get("state", "Doing")}')
+        _scheduler_mark_progress(task2, f'恢復到 {task2.get("state", "Doing")}')
     else:
-        _scheduler_add_flow(task, f'皇上{action}：{reason or "无"}')
+        _scheduler_add_flow(task2, f'皇上{action}：{reason or "無"}')
 
-    task['updatedAt'] = now_iso()
+    task2['updatedAt'] = now_iso()
+    save_tasks(tasks2)
 
-    save_tasks(tasks)
-    if action == 'resume' and task.get('state') not in _TERMINAL_STATES:
-        dispatch_for_state(task_id, task, task.get('state'), trigger='resume')
-    label = {'stop': '已叫停', 'cancel': '已取消', 'resume': '已恢复'}[action]
+    label = {'stop': '已叫停', 'cancel': '已取消', 'resume': '已恢復'}[action]
     return {'ok': True, 'message': f'{task_id} {label}'}
 
 
@@ -257,10 +448,10 @@ def handle_archive_task(task_id, archived, archive_all_done=False):
                 t['archivedAt'] = now_iso()
                 count += 1
         save_tasks(tasks)
-        return {'ok': True, 'message': f'{count} 道旨意已归档', 'count': count}
+        return {'ok': True, 'message': f'{count} 道旨意已歸檔', 'count': count}
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
-        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
     task['archived'] = archived
     if archived:
         task['archivedAt'] = now_iso()
@@ -268,7 +459,7 @@ def handle_archive_task(task_id, archived, archive_all_done=False):
         task.pop('archivedAt', None)
     task['updatedAt'] = now_iso()
     save_tasks(tasks)
-    label = '已归档' if archived else '已取消归档'
+    label = '已歸檔' if archived else '已取消歸檔'
     return {'ok': True, 'message': f'{task_id} {label}'}
 
 
@@ -277,7 +468,7 @@ def update_task_todos(task_id, todos):
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
-        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
 
     task['todos'] = todos
     task['updatedAt'] = now_iso()
@@ -287,9 +478,9 @@ def update_task_todos(task_id, todos):
 
 def read_skill_content(agent_id, skill_name):
     """Read SKILL.md content for a specific skill."""
-    # 输入校验：防止路径遍历
+    # 輸入校驗：防止路徑遍歷
     if not _SAFE_NAME_RE.match(agent_id) or not _SAFE_NAME_RE.match(skill_name):
-        return {'ok': False, 'error': '参数含非法字符'}
+        return {'ok': False, 'error': '參數含非法字符'}
     cfg = read_json(DATA / 'agent_config.json', {})
     agents = cfg.get('agents', [])
     ag = next((a for a in agents if a.get('id') == agent_id), None)
@@ -299,10 +490,10 @@ def read_skill_content(agent_id, skill_name):
     if not sk:
         return {'ok': False, 'error': f'技能 {skill_name} 不存在'}
     skill_path = pathlib.Path(sk.get('path', '')).resolve()
-    # 路径遍历保护：确保路径在 OCLAW_HOME 或项目目录下
+    # 路徑遍歷保護：確保路徑在 OCLAW_HOME 或項目目錄下
     allowed_roots = (OCLAW_HOME.resolve(), BASE.parent.resolve())
     if not any(str(skill_path).startswith(str(root)) for root in allowed_roots):
-        return {'ok': False, 'error': '路径不在允许的目录范围内'}
+        return {'ok': False, 'error': '路徑不在允許的目錄範圍內'}
     if not skill_path.exists():
         return {'ok': True, 'name': skill_name, 'agent': agent_id, 'content': '(SKILL.md 文件不存在)', 'path': str(skill_path)}
     try:
@@ -322,7 +513,7 @@ def add_skill_to_agent(agent_id, skill_name, description, trigger=''):
     workspace.mkdir(parents=True, exist_ok=True)
     skill_md = workspace / 'SKILL.md'
     desc_line = description or skill_name
-    trigger_section = f'\n## 触发条件\n{trigger}\n' if trigger else ''
+    trigger_section = f'\n## 觸發條件\n{trigger}\n' if trigger else ''
     template = (f'---\n'
                 f'name: {skill_name}\n'
                 f'description: {desc_line}\n'
@@ -330,15 +521,15 @@ def add_skill_to_agent(agent_id, skill_name, description, trigger=''):
                 f'# {skill_name}\n\n'
                 f'{desc_line}\n'
                 f'{trigger_section}\n'
-                f'## 输入\n\n'
-                f'<!-- 说明此技能接收什么输入 -->\n\n'
-                f'## 处理流程\n\n'
-                f'1. 步骤一\n'
-                f'2. 步骤二\n\n'
-                f'## 输出规范\n\n'
-                f'<!-- 说明产出物格式与交付要求 -->\n\n'
-                f'## 注意事项\n\n'
-                f'- (在此补充约束、限制或特殊规则)\n')
+                f'## 輸入\n\n'
+                f'<!-- 說明此技能接收什麼輸入 -->\n\n'
+                f'## 處理流程\n\n'
+                f'1. 步驟一\n'
+                f'2. 步驟二\n\n'
+                f'## 輸出規範\n\n'
+                f'<!-- 說明產出物格式與交付要求 -->\n\n'
+                f'## 注意事項\n\n'
+                f'- (在此補充約束、限制或特殊規則)\n')
     skill_md.write_text(template)
     # Re-sync agent config
     try:
@@ -349,96 +540,96 @@ def add_skill_to_agent(agent_id, skill_name, description, trigger=''):
 
 
 def add_remote_skill(agent_id, skill_name, source_url, description=''):
-    """从远程 URL 或本地路径为 Agent 添加 skill SKILL.md 文件。
+    """從遠程 URL 或本地路徑爲 Agent 添加 skill SKILL.md 文件。
     
     支持的源：
     - HTTPS URLs: https://raw.githubusercontent.com/...
-    - 本地路径: /path/to/SKILL.md 或 file:///path/to/SKILL.md
+    - 本地路徑: /path/to/SKILL.md 或 file:///path/to/SKILL.md
     """
-    # 输入校验
+    # 輸入校驗
     if not _SAFE_NAME_RE.match(agent_id):
         return {'ok': False, 'error': f'agentId 含非法字符: {agent_id}'}
     if not _SAFE_NAME_RE.match(skill_name):
         return {'ok': False, 'error': f'skillName 含非法字符: {skill_name}'}
     if not source_url or not isinstance(source_url, str):
-        return {'ok': False, 'error': 'sourceUrl 必须是有效的字符串'}
+        return {'ok': False, 'error': 'sourceUrl 必須是有效的字符串'}
     
     source_url = source_url.strip()
     
-    # 检查 Agent 是否存在
+    # 檢查 Agent 是否存在
     cfg = read_json(DATA / 'agent_config.json', {})
     agents = cfg.get('agents', [])
     if not any(a.get('id') == agent_id for a in agents):
         return {'ok': False, 'error': f'Agent {agent_id} 不存在'}
     
-    # 下载或读取文件内容
+    # 下載或讀取文件內容
     try:
         if source_url.startswith('http://') or source_url.startswith('https://'):
-            # HTTPS URL 校验
+            # HTTPS URL 校驗
             if not validate_url(source_url, allowed_schemes=('https',)):
-                return {'ok': False, 'error': 'URL 无效或不安全（仅支持 HTTPS）'}
+                return {'ok': False, 'error': 'URL 無效或不安全（僅支持 HTTPS）'}
             
-            # 从 URL 下载，带超时保护
+            # 從 URL 下載，帶超時保護
             req = Request(source_url, headers={'User-Agent': 'OpenClaw-SkillManager/1.0'})
             try:
                 resp = urlopen(req, timeout=10)
                 content = resp.read(10 * 1024 * 1024).decode('utf-8')  # 最多 10MB
                 if len(content) > 10 * 1024 * 1024:
-                    return {'ok': False, 'error': '文件过大（最大 10MB）'}
+                    return {'ok': False, 'error': '文件過大（最大 10MB）'}
             except Exception as e:
-                return {'ok': False, 'error': f'URL 无法访问: {str(e)[:100]}'}
+                return {'ok': False, 'error': f'URL 無法訪問: {str(e)[:100]}'}
         
         elif source_url.startswith('file://'):
             # file:// URL 格式
             local_path = pathlib.Path(source_url[7:]).resolve()
             if not local_path.exists():
                 return {'ok': False, 'error': f'本地文件不存在: {local_path}'}
-            # 路径遍历防护：与本地路径分支一致，确保在允许范围内
+            # 路徑遍歷防護：與本地路徑分支一致，確保在允許範圍內
             allowed_roots = (OCLAW_HOME.resolve(), BASE.parent.resolve())
             if not any(str(local_path).startswith(str(root)) for root in allowed_roots):
-                return {'ok': False, 'error': '路径不在允许的目录范围内'}
+                return {'ok': False, 'error': '路徑不在允許的目錄範圍內'}
             content = local_path.read_text()
         
         elif source_url.startswith('/') or source_url.startswith('.'):
-            # 本地绝对或相对路径
+            # 本地絕對或相對路徑
             local_path = pathlib.Path(source_url).resolve()
             if not local_path.exists():
                 return {'ok': False, 'error': f'本地文件不存在: {local_path}'}
-            # 路径遍历防护
+            # 路徑遍歷防護
             allowed_roots = (OCLAW_HOME.resolve(), BASE.parent.resolve())
             if not any(str(local_path).startswith(str(root)) for root in allowed_roots):
-                return {'ok': False, 'error': '路径不在允许的目录范围内'}
+                return {'ok': False, 'error': '路徑不在允許的目錄範圍內'}
             content = local_path.read_text()
         
         else:
-            return {'ok': False, 'error': '不支持的 URL 格式（仅支持 https://, file://, 或本地路径）'}
+            return {'ok': False, 'error': '不支持的 URL 格式（僅支持 https://, file://, 或本地路徑）'}
     except Exception as e:
-        return {'ok': False, 'error': f'文件读取失败: {str(e)[:100]}'}
+        return {'ok': False, 'error': f'文件讀取失敗: {str(e)[:100]}'}
     
-    # 基础验证：检查是否为 Markdown 且包含 YAML frontmatter
+    # 基礎驗證：檢查是否爲 Markdown 且包含 YAML frontmatter
     if not content.startswith('---'):
-        return {'ok': False, 'error': '文件格式无效（缺少 YAML frontmatter）'}
+        return {'ok': False, 'error': '文件格式無效（缺少 YAML frontmatter）'}
     
-    # 验证 frontmatter 结构（先做字符串检查，再尝试 YAML 解析）
+    # 驗證 frontmatter 結構（先做字符串檢查，再嘗試 YAML 解析）
     parts = content.split('---', 2)
     if len(parts) < 3:
-        return {'ok': False, 'error': '文件格式无效（YAML frontmatter 结构错误）'}
+        return {'ok': False, 'error': '文件格式無效（YAML frontmatter 結構錯誤）'}
     if 'name:' not in content[:500]:
-        return {'ok': False, 'error': '文件格式无效：frontmatter 缺少 name 字段'}
+        return {'ok': False, 'error': '文件格式無效：frontmatter 缺少 name 字段'}
     try:
         import yaml
-        yaml.safe_load(parts[1])  # 严格校验 YAML 语法
+        yaml.safe_load(parts[1])  # 嚴格校驗 YAML 語法
     except ImportError:
-        pass  # PyYAML 未安装，跳过严格验证，字符串检查已通过
+        pass  # PyYAML 未安裝，跳過嚴格驗證，字符串檢查已通過
     except Exception as e:
-        return {'ok': False, 'error': f'YAML 格式无效: {str(e)[:100]}'}
+        return {'ok': False, 'error': f'YAML 格式無效: {str(e)[:100]}'}
     
-    # 创建本地目录
+    # 創建本地目錄
     workspace = OCLAW_HOME / f'workspace-{agent_id}' / 'skills' / skill_name
     workspace.mkdir(parents=True, exist_ok=True)
     skill_md = workspace / 'SKILL.md'
     
-    # 写入 SKILL.md
+    # 寫入 SKILL.md
     skill_md.write_text(content)
     
     # 保存源信息到 .source.json
@@ -462,7 +653,7 @@ def add_remote_skill(agent_id, skill_name, source_url, description=''):
     
     return {
         'ok': True,
-        'message': f'技能 {skill_name} 已从远程源添加到 {agent_id}',
+        'message': f'技能 {skill_name} 已從遠程源添加到 {agent_id}',
         'skillName': skill_name,
         'agentId': agent_id,
         'source': source_url,
@@ -473,10 +664,10 @@ def add_remote_skill(agent_id, skill_name, source_url, description=''):
 
 
 def get_remote_skills_list():
-    """列表所有已添加的远程 skills 及其源信息"""
+    """列表所有已添加的遠程 skills 及其源信息"""
     remote_skills = []
     
-    # 遍历所有 workspace
+    # 遍歷所有 workspace
     for ws_dir in OCLAW_HOME.glob('workspace-*'):
         agent_id = ws_dir.name.replace('workspace-', '')
         skills_dir = ws_dir / 'skills'
@@ -491,12 +682,12 @@ def get_remote_skills_list():
             skill_md = skill_dir / 'SKILL.md'
             
             if not source_json.exists():
-                # 本地创建的 skill，跳过
+                # 本地創建的 skill，跳過
                 continue
             
             try:
                 source_info = json.loads(source_json.read_text())
-                # 检查 SKILL.md 是否存在
+                # 檢查 SKILL.md 是否存在
                 status = 'valid' if skill_md.exists() else 'not-found'
                 remote_skills.append({
                     'skillName': skill_name,
@@ -520,7 +711,7 @@ def get_remote_skills_list():
 
 
 def update_remote_skill(agent_id, skill_name):
-    """更新已添加的远程 skill 为最新版本（重新从源 URL 下载）"""
+    """更新已添加的遠程 skill 爲最新版本（重新從源 URL 下載）"""
     if not _SAFE_NAME_RE.match(agent_id):
         return {'ok': False, 'error': f'agentId 含非法字符: {agent_id}'}
     if not _SAFE_NAME_RE.match(skill_name):
@@ -531,7 +722,7 @@ def update_remote_skill(agent_id, skill_name):
     skill_md = workspace / 'SKILL.md'
     
     if not source_json.exists():
-        return {'ok': False, 'error': f'技能 {skill_name} 不是远程 skill（无 .source.json）'}
+        return {'ok': False, 'error': f'技能 {skill_name} 不是遠程 skill（無 .source.json）'}
     
     try:
         source_info = json.loads(source_json.read_text())
@@ -539,7 +730,7 @@ def update_remote_skill(agent_id, skill_name):
         if not source_url:
             return {'ok': False, 'error': '源 URL 不存在'}
         
-        # 重新下载
+        # 重新下載
         result = add_remote_skill(agent_id, skill_name, source_url, 
                                   source_info.get('description', ''))
         if result['ok']:
@@ -548,11 +739,11 @@ def update_remote_skill(agent_id, skill_name):
             result['newVersion'] = source_info_updated.get('checksum', 'unknown')
         return result
     except Exception as e:
-        return {'ok': False, 'error': f'更新失败: {str(e)[:100]}'}
+        return {'ok': False, 'error': f'更新失敗: {str(e)[:100]}'}
 
 
 def remove_remote_skill(agent_id, skill_name):
-    """移除已添加的远程 skill"""
+    """移除已添加的遠程 skill"""
     if not _SAFE_NAME_RE.match(agent_id):
         return {'ok': False, 'error': f'agentId 含非法字符: {agent_id}'}
     if not _SAFE_NAME_RE.match(skill_name):
@@ -562,13 +753,13 @@ def remove_remote_skill(agent_id, skill_name):
     if not workspace.exists():
         return {'ok': False, 'error': f'技能不存在: {skill_name}'}
     
-    # 检查是否为远程 skill
+    # 檢查是否爲遠程 skill
     source_json = workspace / '.source.json'
     if not source_json.exists():
-        return {'ok': False, 'error': f'技能 {skill_name} 不是远程 skill，无法通过此 API 移除'}
+        return {'ok': False, 'error': f'技能 {skill_name} 不是遠程 skill，無法通過此 API 移除'}
     
     try:
-        # 删除整个 skill 目录
+        # 刪除整個 skill 目錄
         import shutil
         shutil.rmtree(workspace)
         
@@ -578,9 +769,9 @@ def remove_remote_skill(agent_id, skill_name):
         except Exception:
             pass
         
-        return {'ok': True, 'message': f'技能 {skill_name} 已从 {agent_id} 移除'}
+        return {'ok': True, 'message': f'技能 {skill_name} 已從 {agent_id} 移除'}
     except Exception as e:
-        return {'ok': False, 'error': f'移除失败: {str(e)[:100]}'}
+        return {'ok': False, 'error': f'移除失敗: {str(e)[:100]}'}
 
 
 def _compute_checksum(content: str) -> str:
@@ -589,7 +780,7 @@ def _compute_checksum(content: str) -> str:
 
 
 def migrate_notification_config():
-    """自动迁移旧配置 (feishu_webhook) 到新结构 (notification)"""
+    """自動遷移舊配置 (feishu_webhook) 到新結構 (notification)"""
     cfg_path = DATA / 'morning_brief_config.json'
     cfg = read_json(cfg_path, {})
     if not cfg:
@@ -606,9 +797,9 @@ def migrate_notification_config():
     }
     try:
         atomic_json_write(cfg_path, cfg)
-        log.info('已自动迁移 feishu_webhook 到 notification 配置')
+        log.info('已自動遷移 feishu_webhook 到 notification 配置')
     except Exception as e:
-        log.warning(f'迁移配置失败: {e}')
+        log.warning(f'遷移配置失敗: {e}')
 
 
 def push_notification():
@@ -638,48 +829,39 @@ def push_notification():
     cat_lines = []
     for cat, items in (brief.get('categories') or {}).items():
         if items:
-            cat_lines.append(f'  {cat}: {len(items)} 条')
+            cat_lines.append(f'  {cat}: {len(items)} 條')
     summary = '\n'.join(cat_lines)
     date_fmt = date_str[:4] + '年' + date_str[4:6] + '月' + date_str[6:] + '日' if len(date_str) == 8 else date_str
-    title = f'📰 天下要闻 · {date_fmt}'
-    content = f'共 **{total}** 条要闻已更新\n{summary}'
+    title = f'📰 天下要聞 · {date_fmt}'
+    content = f'共 **{total}** 條要聞已更新\n{summary}'
     url = f'http://127.0.0.1:{_DASHBOARD_PORT}'
     success = channel_cls.send(webhook, title, content, url)
-    print(f'[{channel_cls.label}] 推送{"成功" if success else "失败"}')
+    print(f'[{channel_cls.label}] 推送{"成功" if success else "失敗"}')
 
 
 def push_to_feishu():
-    """Push morning brief link to Feishu via webhook. (已弃用，使用 push_notification)"""
+    """Push morning brief link to Feishu via webhook. (已棄用，使用 push_notification)"""
     push_notification()
 
 
-# 旨意标题最低要求
+# 旨意標題最低要求
 _MIN_TITLE_LEN = 6
 _JUNK_TITLES = {
-    '?', '？', '好', '好的', '是', '否', '不', '不是', '对', '了解', '收到',
-    '嗯', '哦', '知道了', '开启了么', '可以', '不行', '行', 'ok', 'yes', 'no',
-    '你去开启', '测试', '试试', '看看',
+    '?', '？', '好', '好的', '是', '否', '不', '不是', '對', '了解', '收到',
+    '嗯', '哦', '知道了', '開啓了麼', '可以', '不行', '行', 'ok', 'yes', 'no',
+    '你去開啓', '測試', '試試', '看看',
 }
 
 
-def handle_create_task(title, org='中书省', official='中书令', priority='normal', template_id='', params=None, target_dept=''):
-    """从看板创建新任务（圣旨模板下旨）。"""
+def handle_create_task(title, org='中書省', official='中書令', priority='normal', template_id='', params=None, target_dept=''):
+    """從看板創建新任務（聖旨模板下旨）。
+
+    統一走 scripts/kanban_update.py 的共用建單函式，避免 Dashboard 與 CLI 邏輯分叉。
+    """
     if not title or not title.strip():
-        return {'ok': False, 'error': '任务标题不能为空'}
+        return {'ok': False, 'error': '任務標題不能爲空'}
+
     title = title.strip()
-    # 剥离 Conversation info 元数据
-    title = re.split(r'\n*Conversation info\s*\(', title, maxsplit=1)[0].strip()
-    title = re.split(r'\n*```', title, maxsplit=1)[0].strip()
-    # 清理常见前缀: "传旨:" "下旨:" 等
-    title = re.sub(r'^(传旨|下旨)[：:\uff1a]\s*', '', title)
-    if len(title) > 100:
-        title = title[:100] + '…'
-    # 标题质量校验：防止闲聊被误建为旨意
-    if len(title) < _MIN_TITLE_LEN:
-        return {'ok': False, 'error': f'标题过短（{len(title)}<{_MIN_TITLE_LEN}字），不像是旨意'}
-    if title.lower() in _JUNK_TITLES:
-        return {'ok': False, 'error': f'「{title}」不是有效旨意，请输入具体工作指令'}
-    # 生成 task id: JJC-YYYYMMDD-NNN
     today = datetime.datetime.now().strftime('%Y%m%d')
     tasks = load_tasks()
     today_ids = [t['id'] for t in tasks if t.get('id', '').startswith(f'JJC-{today}-')]
@@ -688,45 +870,38 @@ def handle_create_task(title, org='中书省', official='中书令', priority='n
         nums = [int(tid.split('-')[-1]) for tid in today_ids if tid.split('-')[-1].isdigit()]
         seq = max(nums) + 1 if nums else 1
     task_id = f'JJC-{today}-{seq:03d}'
-    # 正确流程起点：皇上 -> 太子分拣
-    # target_dept 记录模板建议的最终执行部门（仅供尚书省派发参考）
-    initial_org = '太子'
-    new_task = {
-        'id': task_id,
-        'title': title,
-        'official': official,
-        'org': initial_org,
-        'state': 'Taizi',
-        'now': '等待太子接旨分拣',
-        'eta': '-',
-        'block': '无',
-        'output': '',
-        'ac': '',
-        'priority': priority,
-        'templateId': template_id,
-        'templateParams': params or {},
-        'flow_log': [{
-            'at': now_iso(),
-            'from': '皇上',
-            'to': initial_org,
-            'remark': f'下旨：{title}'
-        }],
-        'updatedAt': now_iso(),
-    }
-    if target_dept:
-        new_task['targetDept'] = target_dept
 
-    _ensure_scheduler(new_task)
-    _scheduler_snapshot(new_task, 'create-task-initial')
-    _scheduler_mark_progress(new_task, '任务创建')
+    # 統一建單入口（含標題清洗/校驗、初始化、派發）
+    create_task_from_intent(
+        task_id=task_id,
+        title=title,
+        state='Taizi',
+        org='太子',
+        official=official,
+        remark=f'下旨：{title}',
+    )
 
-    tasks.insert(0, new_task)
-    save_tasks(tasks)
-    log.info(f'创建任务: {task_id} | {title[:40]}')
+    # 補充 Dashboard 額外字段（模板/優先級/目標部門）
+    def _patch_extra(tsk):
+        if tsk.get('id') != task_id:
+            return tsk
+        tsk['priority'] = priority
+        tsk['templateId'] = template_id
+        tsk['templateParams'] = params or {}
+        if target_dept:
+            tsk['targetDept'] = target_dept
+        _ensure_scheduler(tsk)
+        _scheduler_snapshot(tsk, 'create-task-initial')
+        _scheduler_mark_progress(tsk, '任務創建')
+        tsk['updatedAt'] = now_iso()
+        return tsk
 
-    dispatch_for_state(task_id, new_task, 'Taizi', trigger='imperial-edict')
+    def _modifier(all_tasks):
+        return [_patch_extra(t) for t in all_tasks]
 
-    return {'ok': True, 'taskId': task_id, 'message': f'旨意 {task_id} 已下达，正在派发给太子'}
+    atomic_json_update(get_task_data_dir() / 'tasks_source.json', _modifier, [])
+
+    return {'ok': True, 'taskId': task_id, 'message': f'旨意 {task_id} 已下達，正在派發給太子'}
 
 
 def _todo_progress(task):
@@ -737,82 +912,82 @@ def _todo_progress(task):
 
 
 def handle_review_action(task_id, action, comment=''):
-    """门下省御批：准奏/封驳。"""
+    """門下省御批：準奏/封駁。"""
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
-        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
     if task.get('state') not in ('Review', 'Menxia'):
-        return {'ok': False, 'error': f'任务 {task_id} 当前状态为 {task.get("state")}，无法御批'}
+        return {'ok': False, 'error': f'任務 {task_id} 當前狀態爲 {task.get("state")}，無法御批'}
 
     _ensure_scheduler(task)
     _scheduler_snapshot(task, f'review-before-{action}')
 
     if action == 'approve':
         if task['state'] == 'Menxia':
-            task['state'] = 'Assigned'
-            task['now'] = '门下省准奏，移交尚书省派发'
-            remark = f'✅ 准奏：{comment or "门下省审议通过"}'
-            to_dept = '尚书省'
+            new_state = 'Assigned'
+            now_text = '門下省準奏，移交尚書省派發'
+            remark = f'✅ 準奏：{comment or "門下省審議通過"}'
+            to_dept = '尚書省'
         else:  # Review
             completed, total = _todo_progress(task)
             if total > 0 and completed < total:
-                return {'ok': False, 'error': f'子任务尚未全部完成（{completed}/{total}），不能直接准奏完结'}
-            task['state'] = 'Done'
-            task['now'] = '御批通过，任务完成'
-            remark = f'✅ 御批准奏：{comment or "审查通过"}'
+                return {'ok': False, 'error': f'子任務尚未全部完成（{completed}/{total}），不能直接準奏完結'}
+            new_state = 'Done'
+            now_text = '御批通過，任務完成'
+            remark = f'✅ 御批准奏：{comment or "審查通過"}'
             to_dept = '皇上'
     elif action == 'reject':
         round_num = (task.get('review_round') or 0) + 1
         task['review_round'] = round_num
-        task['state'] = 'Zhongshu'
-        task['now'] = f'封驳退回中书省修订（第{round_num}轮）'
-        remark = f'🚫 封驳：{comment or "需要修改"}'
-        to_dept = '中书省'
+        now_text = f'封駁退回中書省修訂（第{round_num}輪）'
+        new_state = 'Zhongshu'
+        remark = f'🚫 封駁：{comment or "需要修改"}'
+        to_dept = '中書省'
     else:
         return {'ok': False, 'error': f'未知操作: {action}'}
 
-    task.setdefault('flow_log', []).append({
-        'at': now_iso(),
-        'from': '门下省' if task.get('state') != 'Done' else '皇上',
-        'to': to_dept,
-        'remark': remark
-    })
-    _scheduler_mark_progress(task, f'审议动作 {action} -> {task.get("state")}')
-    task['updatedAt'] = now_iso()
-    save_tasks(tasks)
+    # 統一狀態/流轉寫入入口
+    set_task_state(task_id, new_state, now_text)
+    record_task_flow(task_id, '門下省' if new_state != 'Done' else '皇上', to_dept, remark)
 
-    # 🚀 审批后自动派发对应 Agent
-    new_state = task['state']
-    if new_state not in ('Done',):
-        dispatch_for_state(task_id, task, new_state)
+    # Dashboard 擴展欄位（scheduler/review_round）
+    tasks2 = load_tasks()
+    task2 = next((t for t in tasks2 if t.get('id') == task_id), None)
+    if task2:
+        if action == 'reject':
+            task2['review_round'] = round_num
+        _ensure_scheduler(task2)
+        _scheduler_mark_progress(task2, f'審議動作 {action} -> {new_state}')
+        task2['updatedAt'] = now_iso()
+        save_tasks(tasks2)
 
-    label = '已准奏' if action == 'approve' else '已封驳'
-    dispatched = ' (已自动派发 Agent)' if new_state != 'Done' else ''
+    label = '已準奏' if action == 'approve' else '已封駁'
+    dispatched = ' (已自動派發 Agent)' if new_state != 'Done' else ''
     return {'ok': True, 'message': f'{task_id} {label}{dispatched}'}
 
 
-# ══ Agent 在线状态检测 ══
+# ══ Agent 在線狀態檢測 ══
 
 _AGENT_DEPTS = [
-    {'id':'taizi',   'label':'太子',  'emoji':'🤴', 'role':'太子',     'rank':'储君'},
-    {'id':'zhongshu','label':'中书省','emoji':'📜', 'role':'中书令',   'rank':'正一品'},
-    {'id':'menxia',  'label':'门下省','emoji':'🔍', 'role':'侍中',     'rank':'正一品'},
-    {'id':'shangshu','label':'尚书省','emoji':'📮', 'role':'尚书令',   'rank':'正一品'},
-    {'id':'hubu',    'label':'户部',  'emoji':'💰', 'role':'户部尚书', 'rank':'正二品'},
-    {'id':'libu',    'label':'礼部',  'emoji':'📝', 'role':'礼部尚书', 'rank':'正二品'},
-    {'id':'bingbu',  'label':'兵部',  'emoji':'⚔️', 'role':'兵部尚书', 'rank':'正二品'},
-    {'id':'xingbu',  'label':'刑部',  'emoji':'⚖️', 'role':'刑部尚书', 'rank':'正二品'},
-    {'id':'gongbu',  'label':'工部',  'emoji':'🔧', 'role':'工部尚书', 'rank':'正二品'},
-    {'id':'libu_hr', 'label':'吏部',  'emoji':'👔', 'role':'吏部尚书', 'rank':'正二品'},
-    {'id':'zaochao', 'label':'钦天监','emoji':'📰', 'role':'朝报官',   'rank':'正三品'},
+    {'id':'taizi',   'label':'太子',  'emoji':'🤴', 'role':'太子',     'rank':'儲君'},
+    {'id':'zhongshu','label':'中書省','emoji':'📜', 'role':'中書令',   'rank':'正一品'},
+    {'id':'menxia',  'label':'門下省','emoji':'🔍', 'role':'侍中',     'rank':'正一品'},
+    {'id':'shangshu','label':'尚書省','emoji':'📮', 'role':'尚書令',   'rank':'正一品'},
+    {'id':'hubu',    'label':'戶部',  'emoji':'💰', 'role':'戶部尚書', 'rank':'正二品'},
+    {'id':'libu',    'label':'禮部',  'emoji':'📝', 'role':'禮部尚書', 'rank':'正二品'},
+    {'id':'bingbu',  'label':'兵部',  'emoji':'⚔️', 'role':'兵部尚書', 'rank':'正二品'},
+    {'id':'xingbu',  'label':'刑部',  'emoji':'⚖️', 'role':'刑部尚書', 'rank':'正二品'},
+    {'id':'gongbu',  'label':'工部',  'emoji':'🔧', 'role':'工部尚書', 'rank':'正二品'},
+    {'id':'libu_hr', 'label':'吏部',  'emoji':'👔', 'role':'吏部尚書', 'rank':'正二品'},
+    {'id':'zaochao', 'label':'欽天監','emoji':'📰', 'role':'朝報官',   'rank':'正三品'},
 ]
 
 
 def _check_gateway_alive():
-    """检测 Gateway 是否在运行。
+    """檢測 Gateway 是否在運行。
 
-    Windows 上不要依赖 pgrep；优先通过本地端口探测判断。
+    Windows 上不要依賴 pgrep；優先通過本地端口探測判斷。
     """
     if _check_gateway_probe():
         return True
@@ -829,7 +1004,7 @@ def _check_gateway_alive():
 
 
 def _check_gateway_probe():
-    """通过 HTTP probe 检测 Gateway 是否响应。"""
+    """通過 HTTP probe 檢測 Gateway 是否響應。"""
     for url in ('http://127.0.0.1:18789/', 'http://127.0.0.1:18789/healthz'):
         try:
             from urllib.request import urlopen
@@ -842,7 +1017,7 @@ def _check_gateway_probe():
 
 
 def _get_agent_session_status(agent_id):
-    """读取 Agent 的 sessions.json 获取活跃状态。
+    """讀取 Agent 的 sessions.json 獲取活躍狀態。
     返回: (last_active_ts_ms, session_count, is_busy)
     """
     sessions_file = OCLAW_HOME / 'agents' / agent_id / 'sessions' / 'sessions.json'
@@ -860,14 +1035,14 @@ def _get_agent_session_status(agent_id):
                 last_ts = ts
         now_ms = int(datetime.datetime.now().timestamp() * 1000)
         age_ms = now_ms - last_ts if last_ts else 9999999999
-        is_busy = age_ms <= 2 * 60 * 1000  # 2分钟内视为正在工作
+        is_busy = age_ms <= 2 * 60 * 1000  # 2分鐘內視爲正在工作
         return last_ts, session_count, is_busy
     except Exception:
         return 0, 0, False
 
 
 def _check_agent_process(agent_id):
-    """检测是否有该 Agent 的 openclaw-agent 进程正在运行。"""
+    """檢測是否有該 Agent 的 openclaw-agent 進程正在運行。"""
     try:
         result = subprocess.run(
             ['pgrep', '-f', f'openclaw.*--agent.*{agent_id}'],
@@ -879,19 +1054,19 @@ def _check_agent_process(agent_id):
 
 
 def _check_agent_workspace(agent_id):
-    """检查 Agent 工作空间是否存在。"""
+    """檢查 Agent 工作空間是否存在。"""
     ws = OCLAW_HOME / f'workspace-{agent_id}'
     return ws.is_dir()
 
 
 def get_agents_status():
-    """获取所有 Agent 的在线状态。
+    """獲取所有 Agent 的在線狀態。
     返回各 Agent 的:
     - status: 'running' | 'idle' | 'offline' | 'unconfigured'
-    - lastActive: 最后活跃时间
-    - sessions: 会话数
-    - hasWorkspace: 工作空间是否存在
-    - processAlive: 是否有进程在运行
+    - lastActive: 最後活躍時間
+    - sessions: 會話數
+    - hasWorkspace: 工作空間是否存在
+    - processAlive: 是否有進程在運行
     """
     gateway_alive = _check_gateway_alive()
     gateway_probe = _check_gateway_probe() if gateway_alive else False
@@ -908,33 +1083,33 @@ def get_agents_status():
         last_ts, sess_count, is_busy = _get_agent_session_status(aid)
         process_alive = _check_agent_process(aid)
 
-        # 状态判定
+        # 狀態判定
         if not has_workspace:
             status = 'unconfigured'
             status_label = '❌ 未配置'
         elif not gateway_alive:
             status = 'offline'
-            status_label = '🔴 Gateway 离线'
+            status_label = '🔴 Gateway 離線'
         elif process_alive or is_busy:
             status = 'running'
-            status_label = '🟢 运行中'
+            status_label = '🟢 運行中'
         elif last_ts > 0:
             now_ms = int(datetime.datetime.now().timestamp() * 1000)
             age_ms = now_ms - last_ts
-            if age_ms <= 10 * 60 * 1000:  # 10分钟内
+            if age_ms <= 10 * 60 * 1000:  # 10分鐘內
                 status = 'idle'
                 status_label = '🟡 待命'
-            elif age_ms <= 3600 * 1000:  # 1小时内
+            elif age_ms <= 3600 * 1000:  # 1小時內
                 status = 'idle'
-                status_label = '⚪ 空闲'
+                status_label = '⚪ 空閒'
             else:
                 status = 'idle'
                 status_label = '⚪ 休眠'
         else:
             status = 'idle'
-            status_label = '⚪ 无记录'
+            status_label = '⚪ 無記錄'
 
-        # 格式化最后活跃时间
+        # 格式化最後活躍時間
         last_active_str = None
         if last_ts > 0:
             try:
@@ -963,7 +1138,7 @@ def get_agents_status():
         'gateway': {
             'alive': gateway_alive,
             'probe': gateway_probe,
-            'status': '🟢 运行中' if gateway_probe else ('🟡 进程在但无响应' if gateway_alive else '🔴 未启动'),
+            'status': '🟢 運行中' if gateway_probe else ('🟡 進程在但無響應' if gateway_alive else '🔴 未啓動'),
         },
         'agents': agents,
         'checkedAt': now_iso(),
@@ -971,60 +1146,60 @@ def get_agents_status():
 
 
 def wake_agent(agent_id, message=''):
-    """唤醒指定 Agent，发送一条心跳/唤醒消息。"""
+    """喚醒指定 Agent，發送一條心跳/喚醒消息。"""
     if not _SAFE_NAME_RE.match(agent_id):
         return {'ok': False, 'error': f'agent_id 非法: {agent_id}'}
     if not _check_agent_workspace(agent_id):
-        return {'ok': False, 'error': f'{agent_id} 工作空间不存在，请先配置'}
+        return {'ok': False, 'error': f'{agent_id} 工作空間不存在，請先配置'}
     if not _check_gateway_alive():
-        return {'ok': False, 'error': 'Gateway 未启动，请先运行 openclaw gateway start'}
+        return {'ok': False, 'error': 'Gateway 未啓動，請先運行 openclaw gateway start'}
 
-    # agent_id 直接作为 runtime_id（openclaw agents list 中的注册名）
+    # agent_id 直接作爲 runtime_id（openclaw agents list 中的註冊名）
     runtime_id = agent_id
-    msg = message or f'🔔 系统心跳检测 — 请回复 OK 确认在线。当前时间: {now_iso()}'
+    msg = message or f'🔔 系統心跳檢測 — 請回復 OK 確認在線。當前時間: {now_iso()}'
 
     def do_wake():
         try:
             cmd = ['openclaw', 'agent', '--agent', runtime_id, '-m', msg, '--timeout', '120']
-            log.info(f'🔔 唤醒 {agent_id}...')
-            # 带重试（最多2次）
+            log.info(f'🔔 喚醒 {agent_id}...')
+            # 帶重試（最多2次）
             for attempt in range(1, 3):
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=130)
                 if result.returncode == 0:
-                    log.info(f'✅ {agent_id} 已唤醒')
+                    log.info(f'✅ {agent_id} 已喚醒')
                     return
                 err_msg = result.stderr[:200] if result.stderr else result.stdout[:200]
-                log.warning(f'⚠️ {agent_id} 唤醒失败(第{attempt}次): {err_msg}')
+                log.warning(f'⚠️ {agent_id} 喚醒失敗(第{attempt}次): {err_msg}')
                 if attempt < 2:
                     import time
                     time.sleep(5)
-            log.error(f'❌ {agent_id} 唤醒最终失败')
+            log.error(f'❌ {agent_id} 喚醒最終失敗')
         except subprocess.TimeoutExpired:
-            log.error(f'❌ {agent_id} 唤醒超时(130s)')
+            log.error(f'❌ {agent_id} 喚醒超時(130s)')
         except Exception as e:
-            log.warning(f'⚠️ {agent_id} 唤醒异常: {e}')
+            log.warning(f'⚠️ {agent_id} 喚醒異常: {e}')
     threading.Thread(target=do_wake, daemon=True).start()
 
-    return {'ok': True, 'message': f'{agent_id} 唤醒指令已发出，约10-30秒后生效'}
+    return {'ok': True, 'message': f'{agent_id} 喚醒指令已發出，約10-30秒後生效'}
 
 
-# ══ Agent 实时活动读取 ══
+# ══ Agent 實時活動讀取 ══
 
-# 状态 → agent_id 映射
+# 狀態 → agent_id 映射
 _STATE_AGENT_MAP = {
     'Taizi': 'taizi',
     'Zhongshu': 'zhongshu',
     'Menxia': 'menxia',
     'Assigned': 'shangshu',
-    'Doing': None,         # 六部，需从 org 推断
+    'Doing': None,         # 六部，需從 org 推斷
     'Review': 'shangshu',
-    'Next': None,          # 待执行，从 org 推断
-    'Pending': 'zhongshu', # 待处理，默认中书省
+    'Next': None,          # 待執行，從 org 推斷
+    'Pending': 'zhongshu', # 待處理，默認中書省
 }
 _ORG_AGENT_MAP = {
-    '礼部': 'libu', '户部': 'hubu', '兵部': 'bingbu',
+    '禮部': 'libu', '戶部': 'hubu', '兵部': 'bingbu',
     '刑部': 'xingbu', '工部': 'gongbu', '吏部': 'libu_hr',
-    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu',
+    '中書省': 'zhongshu', '門下省': 'menxia', '尚書省': 'shangshu',
 }
 
 _TERMINAL_STATES = {'Done', 'Cancelled'}
@@ -1070,7 +1245,7 @@ def _ensure_scheduler(task):
 def _scheduler_add_flow(task, remark, to=''):
     task.setdefault('flow_log', []).append({
         'at': now_iso(),
-        'from': '太子调度',
+        'from': '太子調度',
         'to': to or task.get('org', ''),
         'remark': f'🧭 {remark}'
     })
@@ -1096,7 +1271,7 @@ def _scheduler_mark_progress(task, note=''):
     sched['rollbackCount'] = 0
     sched['lastEscalatedAt'] = None
     if note:
-        _scheduler_add_flow(task, f'进展确认：{note}')
+        _scheduler_add_flow(task, f'進展確認：{note}')
 
 
 def _resolve_openclaw_bin():
@@ -1134,7 +1309,7 @@ def get_scheduler_state(task_id):
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
-        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
     sched = _ensure_scheduler(task)
     last_progress = _parse_iso(sched.get('lastProgressAt') or task.get('updatedAt'))
     now_dt = datetime.datetime.now(datetime.timezone.utc)
@@ -1157,10 +1332,10 @@ def handle_scheduler_retry(task_id, reason=''):
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
-        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
     state = task.get('state', '')
     if state in _TERMINAL_STATES or state == 'Blocked':
-        return {'ok': False, 'error': f'任务 {task_id} 当前状态 {state} 不支持重试'}
+        return {'ok': False, 'error': f'任務 {task_id} 當前狀態 {state} 不支持重試'}
 
     result = {'retryCount': 0, 'state': state}
 
@@ -1186,34 +1361,34 @@ def handle_scheduler_escalate(task_id, reason=''):
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
-        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
     state = task.get('state', '')
     if state in _TERMINAL_STATES:
-        return {'ok': False, 'error': f'任务 {task_id} 已结束，无需升级'}
+        return {'ok': False, 'error': f'任務 {task_id} 已結束，無需升級'}
 
     sched = _ensure_scheduler(task)
     current_level = int(sched.get('escalationLevel') or 0)
     next_level = min(current_level + 1, 2)
     target = 'menxia' if next_level == 1 else 'shangshu'
-    target_label = '门下省' if next_level == 1 else '尚书省'
+    target_label = '門下省' if next_level == 1 else '尚書省'
 
     sched['escalationLevel'] = next_level
     sched['lastEscalatedAt'] = now_iso()
-    _scheduler_add_flow(task, f'升级到{target_label}协调：{reason or "任务停滞"}', to=target_label)
+    _scheduler_add_flow(task, f'升級到{target_label}協調：{reason or "任務停滯"}', to=target_label)
     task['updatedAt'] = now_iso()
     save_tasks(tasks)
 
     msg = (
-        f'🧭 太子调度升级通知\n'
-        f'任务ID: {task_id}\n'
-        f'当前状态: {state}\n'
-        f'停滞处理: 请你介入协调推进\n'
-        f'原因: {reason or "任务超过阈值未推进"}\n'
-        f'⚠️ 看板已有任务，请勿重复创建。'
+        f'🧭 太子調度升級通知\n'
+        f'任務ID: {task_id}\n'
+        f'當前狀態: {state}\n'
+        f'停滯處理: 請你介入協調推進\n'
+        f'原因: {reason or "任務超過閾值未推進"}\n'
+        f'⚠️ 看板已有任務，請勿重複創建。'
     )
     wake_agent(target, msg)
 
-    return {'ok': True, 'message': f'{task_id} 已升级至{target_label}', 'escalationLevel': next_level}
+    return {'ok': True, 'message': f'{task_id} 已升級至{target_label}', 'escalationLevel': next_level}
 
 
 def handle_scheduler_rollback(task_id, reason=''):
@@ -1221,12 +1396,12 @@ def handle_scheduler_rollback(task_id, reason=''):
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
-        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
     sched = _ensure_scheduler(task)
     snapshot = sched.get('snapshot') or {}
     snap_state = snapshot.get('state')
     if not snap_state:
-        return {'ok': False, 'error': f'任务 {task_id} 无可用回滚快照'}
+        return {'ok': False, 'error': f'任務 {task_id} 無可用回滾快照'}
 
     result = {'snap_state': snap_state}
 
@@ -1240,12 +1415,12 @@ def handle_scheduler_rollback(task_id, reason=''):
         task['state'] = s_state
         task['org'] = snapshot.get('org', task.get('org', ''))
         task['now'] = f'↩️ 太子调度自动回滚：{reason or "恢复到上个稳定节点"}'
-        task['block'] = '无'
+        task['block'] = '無'
         sched['retryCount'] = 0
         sched['escalationLevel'] = 0
         sched['stallSince'] = None
         sched['lastProgressAt'] = now_iso()
-        _scheduler_add_flow(task, f'执行回滚：{old_state} → {s_state}，原因：{reason or "停滞恢复"}')
+        _scheduler_add_flow(task, f'執行回滾：{old_state} → {s_state}，原因：{reason or "停滯恢復"}')
         result['snap_state'] = s_state
 
     modify_task(task_id, _apply)
@@ -1253,7 +1428,7 @@ def handle_scheduler_rollback(task_id, reason=''):
     if result['snap_state'] not in _TERMINAL_STATES:
         dispatch_for_state(task_id, task, result['snap_state'], trigger='taizi-rollback')
 
-    return {'ok': True, 'message': f'{task_id} 已回滚到 {result["snap_state"]}'}
+    return {'ok': True, 'message': f'{task_id} 已回滾到 {result["snap_state"]}'}
 
 
 def handle_scheduler_scan(threshold_sec=600):
@@ -1372,12 +1547,12 @@ def handle_scheduler_scan(threshold_sec=600):
 
     for task_id, state, target, target_label, stalled_sec in pending_escalates:
         msg = (
-            f'🧭 太子调度升级通知\n'
-            f'任务ID: {task_id}\n'
-            f'当前状态: {state}\n'
-            f'已停滞: {stalled_sec} 秒\n'
-            f'请立即介入协调推进\n'
-            f'⚠️ 看板已有任务，请勿重复创建。'
+            f'🧭 太子調度升級通知\n'
+            f'任務ID: {task_id}\n'
+            f'當前狀態: {state}\n'
+            f'已停滯: {stalled_sec} 秒\n'
+            f'請立即介入協調推進\n'
+            f'⚠️ 看板已有任務，請勿重複創建。'
         )
         wake_agent(target, msg)
 
@@ -1396,8 +1571,8 @@ def handle_scheduler_scan(threshold_sec=600):
 
 
 def _startup_recover_queued_dispatches():
-    """服务启动后扫描 lastDispatchStatus=queued 的任务，重新派发。
-    解决：kill -9 重启导致派发线程中断、任务永久卡住的问题。"""
+    """服務啓動後掃描 lastDispatchStatus=queued 的任務，重新派發。
+    解決：kill -9 重啓導致派發線程中斷、任務永久卡住的問題。"""
     tasks = load_tasks()
     recovered = 0
     for task in tasks:
@@ -1407,18 +1582,18 @@ def _startup_recover_queued_dispatches():
             continue
         sched = task.get('_scheduler') or {}
         if sched.get('lastDispatchStatus') == 'queued':
-            log.info(f'🔄 启动恢复: {task_id} 状态={state} 上次派发未完成，重新派发')
+            log.info(f'🔄 啓動恢復: {task_id} 狀態={state} 上次派發未完成，重新派發')
             sched['lastDispatchTrigger'] = 'startup-recovery'
             dispatch_for_state(task_id, task, state, trigger='startup-recovery')
             recovered += 1
     if recovered:
-        log.info(f'✅ 启动恢复完成: 重新派发 {recovered} 个任务')
+        log.info(f'✅ 啓動恢復完成: 重新派發 {recovered} 個任務')
     else:
-        log.info(f'✅ 启动恢复: 无需恢复')
+        log.info(f'✅ 啓動恢復: 無需恢復')
 
 
 def handle_repair_flow_order():
-    """修复历史任务中首条流转为“皇上->中书省”的错序问题。"""
+    """修復歷史任務中首條流轉爲「皇上->中書省」的錯序問題。"""
     tasks = load_tasks()
     fixed = 0
     fixed_ids = []
@@ -1432,7 +1607,7 @@ def handle_repair_flow_order():
             continue
 
         first = flow_log[0]
-        if first.get('from') != '皇上' or first.get('to') != '中书省':
+        if first.get('from') != '皇上' or first.get('to') != '中書省':
             continue
 
         first['to'] = '太子'
@@ -1440,10 +1615,14 @@ def handle_repair_flow_order():
         if isinstance(remark, str) and remark.startswith('下旨：'):
             first['remark'] = remark
 
-        if task.get('state') == 'Zhongshu' and task.get('org') == '中书省' and len(flow_log) == 1:
-            task['state'] = 'Taizi'
+        if task.get('state') == 'Zhongshu' and task.get('org') == '中書省' and len(flow_log) == 1:
+            set_task_state(task_id, 'Taizi', '等待太子接旨分揀')
+            # 重新讀取，確保下方保存使用最新內容
+            tasks = load_tasks()
+            task = next((t for t in tasks if t.get('id') == task_id), None)
+            if not task:
+                continue
             task['org'] = '太子'
-            task['now'] = '等待太子接旨分拣'
 
         task['updatedAt'] = now_iso()
         fixed += 1
@@ -1462,7 +1641,7 @@ def handle_repair_flow_order():
 
 
 def _collect_message_text(msg):
-    """收集消息中的可检索文本，用于 task_id/关键词过滤。"""
+    """收集消息中的可檢索文本，用於 task_id/關鍵詞過濾。"""
     parts = []
     for c in msg.get('content', []) or []:
         ctype = c.get('type')
@@ -1481,7 +1660,7 @@ def _collect_message_text(msg):
 
 
 def _parse_activity_entry(item):
-    """将 session jsonl 的 message 统一解析成看板活动条目。"""
+    """將 session jsonl 的 message 統一解析成看板活動條目。"""
     msg = item.get('message') or {}
     role = str(msg.get('role', '')).strip().lower()
     ts = item.get('timestamp', '')
@@ -1554,20 +1733,20 @@ def _parse_activity_entry(item):
 
 
 def get_agent_activity(agent_id, limit=30, task_id=None):
-    """从 Agent 的 session jsonl 读取最近活动。
-    如果 task_id 不为空，只返回提及该 task_id 的相关条目。
+    """從 Agent 的 session jsonl 讀取最近活動。
+    如果 task_id 不爲空，只返回提及該 task_id 的相關條目。
     """
     sessions_dir = OCLAW_HOME / 'agents' / agent_id / 'sessions'
     if not sessions_dir.exists():
         return []
 
-    # 扫描所有 jsonl（按修改时间倒序），优先最新
+    # 掃描所有 jsonl（按修改時間倒序），優先最新
     jsonl_files = sorted(sessions_dir.glob('*.jsonl'), key=lambda f: f.stat().st_mtime, reverse=True)
     if not jsonl_files:
         return []
 
     entries = []
-    # 如果需要按 task_id 过滤，可能需要扫描多个文件
+    # 如果需要按 task_id 過濾，可能需要掃描多個文件
     files_to_scan = jsonl_files[:3] if task_id else jsonl_files[:1]
 
     for session_file in files_to_scan:
@@ -1576,7 +1755,7 @@ def get_agent_activity(agent_id, limit=30, task_id=None):
         except Exception:
             continue
 
-        # 正向扫描以保持时间顺序；如果有 task_id，收集提及 task_id 的条目
+        # 正向掃描以保持時間順序；如果有 task_id，收集提及 task_id 的條目
         for ln in lines:
             try:
                 item = json.loads(ln)
@@ -1585,7 +1764,7 @@ def get_agent_activity(agent_id, limit=30, task_id=None):
             msg = item.get('message') or {}
             all_text = _collect_message_text(msg)
 
-            # task_id 过滤：只保留提及 task_id 的条目
+            # task_id 過濾：只保留提及 task_id 的條目
             if task_id and task_id not in all_text:
                 continue
             entry = _parse_activity_entry(item)
@@ -1597,18 +1776,18 @@ def get_agent_activity(agent_id, limit=30, task_id=None):
         if len(entries) >= limit:
             break
 
-    # 只保留最后 limit 条
+    # 只保留最後 limit 條
     return entries[-limit:]
 
 
 def _extract_keywords(title):
-    """从任务标题中提取有意义的关键词（用于 session 内容匹配）。"""
-    stop = {'的', '了', '在', '是', '有', '和', '与', '或', '一个', '一篇', '关于', '进行',
-            '写', '做', '请', '把', '给', '用', '要', '需要', '面向', '风格', '包含',
-            '出', '个', '不', '可以', '应该', '如何', '怎么', '什么', '这个', '那个'}
-    # 提取英文词
+    """從任務標題中提取有意義的關鍵詞（用於 session 內容匹配）。"""
+    stop = {'的', '了', '在', '是', '有', '和', '與', '或', '一個', '一篇', '關於', '進行',
+            '寫', '做', '請', '把', '給', '用', '要', '需要', '面向', '風格', '包含',
+            '出', '個', '不', '可以', '應該', '如何', '怎麼', '什麼', '這個', '那個'}
+    # 提取英文詞
     en_words = re.findall(r'[a-zA-Z][\w.-]{1,}', title)
-    # 提取 2-4 字中文词组（更短的颗粒度）
+    # 提取 2-4 字中文詞組（更短的顆粒度）
     cn_words = re.findall(r'[\u4e00-\u9fff]{2,4}', title)
     all_words = en_words + cn_words
     kws = [w for w in all_words if w not in stop and len(w) >= 2]
@@ -1619,12 +1798,12 @@ def _extract_keywords(title):
         if w.lower() not in seen:
             seen.add(w.lower())
             unique.append(w)
-    return unique[:8]  # 最多 8 个关键词
+    return unique[:8]  # 最多 8 個關鍵詞
 
 
 def get_agent_activity_by_keywords(agent_id, keywords, limit=20):
-    """从 agent session 中按关键词匹配获取活动条目。
-    找到包含关键词的 session 文件，只读该文件的活动。
+    """從 agent session 中按關鍵詞匹配獲取活動條目。
+    找到包含關鍵詞的 session 文件，只讀該文件的活動。
     """
     sessions_dir = OCLAW_HOME / 'agents' / agent_id / 'sessions'
     if not sessions_dir.exists():
@@ -1634,7 +1813,7 @@ def get_agent_activity_by_keywords(agent_id, keywords, limit=20):
     if not jsonl_files:
         return []
 
-    # 找到包含关键词的 session 文件
+    # 找到包含關鍵詞的 session 文件
     target_file = None
     for sf in jsonl_files[:5]:
         try:
@@ -1649,14 +1828,14 @@ def get_agent_activity_by_keywords(agent_id, keywords, limit=20):
     if not target_file:
         return []
 
-    # 解析 session 文件，按 user 消息分割为对话段
-    # 找到包含关键词的对话段，只返回该段的活动
+    # 解析 session 文件，按 user 消息分割爲對話段
+    # 找到包含關鍵詞的對話段，只返回該段的活動
     try:
         lines = target_file.read_text(errors='ignore').splitlines()
     except Exception:
         return []
 
-    # 第一遍：找到关键词匹配的 user 消息位置
+    # 第一遍：找到關鍵詞匹配的 user 消息位置
     user_msg_indices = []  # (line_index, user_text)
     for i, ln in enumerate(lines):
         try:
@@ -1671,7 +1850,7 @@ def get_agent_activity_by_keywords(agent_id, keywords, limit=20):
                     text += c['text']
             user_msg_indices.append((i, text))
 
-    # 找到与关键词匹配度最高的 user 消息
+    # 找到與關鍵詞匹配度最高的 user 消息
     best_idx = -1
     best_hits = 0
     for line_idx, utext in user_msg_indices:
@@ -1680,9 +1859,9 @@ def get_agent_activity_by_keywords(agent_id, keywords, limit=20):
             best_hits = hits
             best_idx = line_idx
 
-    # 确定对话段的行范围：从匹配的 user 消息到下一个 user 消息之前
+    # 確定對話段的行範圍：從匹配的 user 消息到下一個 user 消息之前
     if best_idx >= 0 and best_hits >= min(2, len(keywords)):
-        # 找下一个 user 消息的位置
+        # 找下一個 user 消息的位置
         next_user_idx = len(lines)
         for line_idx, _ in user_msg_indices:
             if line_idx > best_idx:
@@ -1691,10 +1870,10 @@ def get_agent_activity_by_keywords(agent_id, keywords, limit=20):
         start_line = best_idx
         end_line = next_user_idx
     else:
-        # 没找到匹配的对话段，返回空
+        # 沒找到匹配的對話段，返回空
         return []
 
-    # 第二遍：只解析对话段内的行
+    # 第二遍：只解析對話段內的行
     entries = []
     for ln in lines[start_line:end_line]:
         try:
@@ -1709,8 +1888,8 @@ def get_agent_activity_by_keywords(agent_id, keywords, limit=20):
 
 
 def get_agent_latest_segment(agent_id, limit=20):
-    """获取 Agent 最新一轮对话段（最后一条 user 消息起的所有内容）。
-    用于活跃任务没有精确匹配时，展示 Agent 的实时工作状态。
+    """獲取 Agent 最新一輪對話段（最後一條 user 消息起的所有內容）。
+    用於活躍任務沒有精確匹配時，展示 Agent 的實時工作狀態。
     """
     sessions_dir = OCLAW_HOME / 'agents' / agent_id / 'sessions'
     if not sessions_dir.exists():
@@ -1721,14 +1900,14 @@ def get_agent_latest_segment(agent_id, limit=20):
     if not jsonl_files:
         return []
 
-    # 读取最新的 session 文件
+    # 讀取最新的 session 文件
     target_file = jsonl_files[0]
     try:
         lines = target_file.read_text(errors='ignore').splitlines()
     except Exception:
         return []
 
-    # 找到最后一条 user 消息的行号
+    # 找到最後一條 user 消息的行號
     last_user_idx = -1
     for i, ln in enumerate(lines):
         try:
@@ -1742,7 +1921,7 @@ def get_agent_latest_segment(agent_id, limit=20):
     if last_user_idx < 0:
         return []
 
-    # 从最后一条 user 消息开始，解析到文件末尾
+    # 從最後一條 user 消息開始，解析到文件末尾
     entries = []
     for ln in lines[last_user_idx:]:
         try:
@@ -1757,7 +1936,7 @@ def get_agent_latest_segment(agent_id, limit=20):
 
 
 def _compute_phase_durations(flow_log):
-    """从 flow_log 计算每个阶段的停留时长。"""
+    """從 flow_log 計算每個階段的停留時長。"""
     if not flow_log or len(flow_log) < 1:
         return []
     phases = []
@@ -1765,14 +1944,14 @@ def _compute_phase_durations(flow_log):
         start_at = fl.get('at', '')
         to_dept = fl.get('to', '')
         remark = fl.get('remark', '')
-        # 下一阶段的起始时间就是本阶段的结束时间
+        # 下一階段的起始時間就是本階段的結束時間
         if i + 1 < len(flow_log):
             end_at = flow_log[i + 1].get('at', '')
             ongoing = False
         else:
             end_at = now_iso()
             ongoing = True
-        # 计算时长
+        # 計算時長
         dur_sec = 0
         try:
             from_dt = datetime.datetime.fromisoformat(start_at.replace('Z', '+00:00'))
@@ -1780,17 +1959,17 @@ def _compute_phase_durations(flow_log):
             dur_sec = max(0, int((to_dt - from_dt).total_seconds()))
         except Exception:
             pass
-        # 人类可读时长
+        # 人類可讀時長
         if dur_sec < 60:
             dur_text = f'{dur_sec}秒'
         elif dur_sec < 3600:
             dur_text = f'{dur_sec // 60}分{dur_sec % 60}秒'
         elif dur_sec < 86400:
             h, rem = divmod(dur_sec, 3600)
-            dur_text = f'{h}小时{rem // 60}分'
+            dur_text = f'{h}小時{rem // 60}分'
         else:
             d, rem = divmod(dur_sec, 86400)
-            dur_text = f'{d}天{rem // 3600}小时'
+            dur_text = f'{d}天{rem // 3600}小時'
         phases.append({
             'phase': to_dept,
             'from': start_at,
@@ -1804,7 +1983,7 @@ def _compute_phase_durations(flow_log):
 
 
 def _compute_todos_summary(todos):
-    """计算 todos 完成率汇总。"""
+    """計算 todos 完成率匯總。"""
     if not todos:
         return None
     total = len(todos)
@@ -1822,7 +2001,7 @@ def _compute_todos_summary(todos):
 
 
 def _compute_todos_diff(prev_todos, curr_todos):
-    """计算两个 todos 快照之间的差异。"""
+    """計算兩個 todos 快照之間的差異。"""
     prev_map = {str(t.get('id', '')): t for t in (prev_todos or [])}
     curr_map = {str(t.get('id', '')): t for t in (curr_todos or [])}
     changed, added, removed = [], [], []
@@ -1845,23 +2024,23 @@ def _compute_todos_diff(prev_todos, curr_todos):
 
 
 def get_task_activity(task_id):
-    """获取任务的实时进展数据。
-    数据来源：
-    1. 任务自身的 now / todos / flow_log 字段（由 Agent 通过 progress 命令主动上报）
-    2. Agent session JSONL 中的对话日志（thinking / tool_result / user，用于展示思考过程）
+    """獲取任務的實時進展數據。
+    數據來源：
+    1. 任務自身的 now / todos / flow_log 字段（由 Agent 通過 progress 命令主動上報）
+    2. Agent session JSONL 中的對話日誌（thinking / tool_result / user，用於展示思考過程）
 
-    增强字段:
-    - taskMeta: 任务元信息 (title/state/org/output/block/priority/reviewRound/archived)
-    - phaseDurations: 各阶段停留时长
-    - todosSummary: todos 完成率汇总
-    - resourceSummary: Agent 资源消耗汇总 (tokens/cost/elapsed)
-    - activity 条目中 progress/todos 保留 state/org 快照
-    - activity 中 todos 条目含 diff 字段
+    增強字段:
+    - taskMeta: 任務元信息 (title/state/org/output/block/priority/reviewRound/archived)
+    - phaseDurations: 各階段停留時長
+    - todosSummary: todos 完成率匯總
+    - resourceSummary: Agent 資源消耗匯總 (tokens/cost/elapsed)
+    - activity 條目中 progress/todos 保留 state/org 快照
+    - activity 中 todos 條目含 diff 字段
     """
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
-        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
 
     state = task.get('state', '')
     org = task.get('org', '')
@@ -1869,7 +2048,7 @@ def get_task_activity(task_id):
     todos = task.get('todos', [])
     updated_at = task.get('updatedAt', '')
 
-    # ── 任务元信息 ──
+    # ── 任務元信息 ──
     task_meta = {
         'title': task.get('title', ''),
         'state': state,
@@ -1881,16 +2060,16 @@ def get_task_activity(task_id):
         'archived': task.get('archived', False),
     }
 
-    # 当前负责 Agent（兼容旧逻辑）
+    # 當前負責 Agent（兼容舊邏輯）
     agent_id = _STATE_AGENT_MAP.get(state)
     if agent_id is None and state in ('Doing', 'Next'):
         agent_id = _ORG_AGENT_MAP.get(org)
 
-    # ── 构建活动条目列表（flow_log + progress_log）──
+    # ── 構建活動條目列表（flow_log + progress_log）──
     activity = []
     flow_log = task.get('flow_log', [])
 
-    # 1. flow_log 转为活动条目
+    # 1. flow_log 轉爲活動條目
     for fl in flow_log:
         activity.append({
             'at': fl.get('at', ''),
@@ -1903,17 +2082,17 @@ def get_task_activity(task_id):
     progress_log = task.get('progress_log', [])
     related_agents = set()
 
-    # 资源消耗累加
+    # 資源消耗累加
     total_tokens = 0
     total_cost = 0.0
     total_elapsed = 0
     has_resource_data = False
 
-    # 用于 todos diff 计算
+    # 用於 todos diff 計算
     prev_todos_snapshot = None
 
     if progress_log:
-        # 2. 多 Agent 实时进展日志（每条 progress 都保留自己的 todo 快照）
+        # 2. 多 Agent 實時進展日誌（每條 progress 都保留自己的 todo 快照）
         for pl in progress_log:
             p_at = pl.get('at', '')
             p_agent = pl.get('agent', '')
@@ -1923,7 +2102,7 @@ def get_task_activity(task_id):
             p_org = pl.get('org', '')
             if p_agent:
                 related_agents.add(p_agent)
-            # 累加资源消耗
+            # 累加資源消耗
             if pl.get('tokens'):
                 total_tokens += pl['tokens']
                 has_resource_data = True
@@ -1943,7 +2122,7 @@ def get_task_activity(task_id):
                     'state': p_state,
                     'org': p_org,
                 }
-                # 单条资源数据
+                # 單條資源數據
                 if pl.get('tokens'):
                     entry['tokens'] = pl['tokens']
                 if pl.get('cost'):
@@ -1961,20 +2140,20 @@ def get_task_activity(task_id):
                     'state': p_state,
                     'org': p_org,
                 }
-                # 计算 diff
+                # 計算 diff
                 diff = _compute_todos_diff(prev_todos_snapshot, p_todos)
                 if diff:
                     todos_entry['diff'] = diff
                 activity.append(todos_entry)
                 prev_todos_snapshot = p_todos
 
-        # 仅当无法通过状态确定 Agent 时，才回退到最后一次上报的 Agent
+        # 僅當無法通過狀態確定 Agent 時，才回退到最後一次上報的 Agent
         if not agent_id:
             last_pl = progress_log[-1]
             if last_pl.get('agent'):
                 agent_id = last_pl.get('agent')
     else:
-        # 兼容旧数据：仅使用 now/todos
+        # 兼容舊數據：僅使用 now/todos
         if now_text:
             activity.append({
                 'at': updated_at,
@@ -1994,28 +2173,28 @@ def get_task_activity(task_id):
                 'org': org,
             })
 
-    # 按时间排序，保证流转/进展穿插正确
+    # 按時間排序，保證流轉/進展穿插正確
     activity.sort(key=lambda x: x.get('at', ''))
 
     if agent_id:
         related_agents.add(agent_id)
 
-    # ── 融合 Agent Session 活动（thinking / tool_result / user）──
-    # 从 session JSONL 中提取 Agent 的思考过程和工具调用记录
+    # ── 融合 Agent Session 活動（thinking / tool_result / user）──
+    # 從 session JSONL 中提取 Agent 的思考過程和工具調用記錄
     try:
         session_entries = []
-        # 活跃任务：尝试按 task_id 精确匹配
+        # 活躍任務：嘗試按 task_id 精確匹配
         if state not in ('Done', 'Cancelled'):
             if agent_id:
                 entries = get_agent_activity(agent_id, limit=30, task_id=task_id)
                 session_entries.extend(entries)
-            # 也从其他相关 Agent 获取
+            # 也從其他相關 Agent 獲取
             for ra in related_agents:
                 if ra != agent_id:
                     entries = get_agent_activity(ra, limit=20, task_id=task_id)
                     session_entries.extend(entries)
         else:
-            # 已完成任务：基于关键词匹配
+            # 已完成任務：基於關鍵詞匹配
             title = task.get('title', '')
             keywords = _extract_keywords(title)
             if keywords:
@@ -2023,7 +2202,7 @@ def get_task_activity(task_id):
                 for ra in agents_to_scan[:5]:
                     entries = get_agent_activity_by_keywords(ra, keywords, limit=15)
                     session_entries.extend(entries)
-        # 去重（通过 at+kind 去重避免重复）
+        # 去重（通過 at+kind 去重避免重複）
         existing_keys = {(a.get('at', ''), a.get('kind', '')) for a in activity}
         for se in session_entries:
             key = (se.get('at', ''), se.get('kind', ''))
@@ -2033,15 +2212,15 @@ def get_task_activity(task_id):
         # 重新排序
         activity.sort(key=lambda x: x.get('at', ''))
     except Exception as e:
-        log.warning(f'Session JSONL 融合失败 (task={task_id}): {e}')
+        log.warning(f'Session JSONL 融合失敗 (task={task_id}): {e}')
 
-    # ── 阶段耗时统计 ──
+    # ── 階段耗時統計 ──
     phase_durations = _compute_phase_durations(flow_log)
 
-    # ── Todos 汇总 ──
+    # ── Todos 匯總 ──
     todos_summary = _compute_todos_summary(todos)
 
-    # ── 总耗时（首条 flow_log 到最后一条/当前） ──
+    # ── 總耗時（首條 flow_log 到最後一條/當前） ──
     total_duration = None
     if flow_log:
         try:
@@ -2057,10 +2236,10 @@ def get_task_activity(task_id):
                 total_duration = f'{dur // 60}分{dur % 60}秒'
             elif dur < 86400:
                 h, rem = divmod(dur, 3600)
-                total_duration = f'{h}小时{rem // 60}分'
+                total_duration = f'{h}小時{rem // 60}分'
             else:
                 d, rem = divmod(dur, 86400)
-                total_duration = f'{d}天{rem // 3600}小时'
+                total_duration = f'{d}天{rem // 3600}小時'
         except Exception:
             pass
 
@@ -2099,20 +2278,20 @@ def get_task_activity(task_id):
     return result
 
 
-# 状态推进顺序（手动推进用）
+# 狀態推進順序（手動推進用）
 _STATE_FLOW = {
-    'Pending':  ('Taizi', '皇上', '太子', '待处理旨意转交太子分拣'),
-    'Taizi':    ('Zhongshu', '太子', '中书省', '太子分拣完毕，转中书省起草'),
-    'Zhongshu': ('Menxia', '中书省', '门下省', '中书省方案提交门下省审议'),
-    'Menxia':   ('Assigned', '门下省', '尚书省', '门下省准奏，转尚书省派发'),
-    'Assigned': ('Doing', '尚书省', '六部', '尚书省开始派发执行'),
-    'Next':     ('Doing', '尚书省', '六部', '待执行任务开始执行'),
-    'Doing':    ('Review', '六部', '尚书省', '各部完成，进入汇总'),
-    'Review':   ('Done', '尚书省', '太子', '全流程完成，回奏太子转报皇上'),
+    'Pending':  ('Taizi', '皇上', '太子', '待處理旨意轉交太子分揀'),
+    'Taizi':    ('Zhongshu', '太子', '中書省', '太子分揀完畢，轉中書省起草'),
+    'Zhongshu': ('Menxia', '中書省', '門下省', '中書省方案提交門下省審議'),
+    'Menxia':   ('Assigned', '門下省', '尚書省', '門下省準奏，轉尚書省派發'),
+    'Assigned': ('Doing', '尚書省', '六部', '尚書省開始派發執行'),
+    'Next':     ('Doing', '尚書省', '六部', '待執行任務開始執行'),
+    'Doing':    ('Review', '六部', '尚書省', '各部完成，進入匯總'),
+    'Review':   ('Done', '尚書省', '太子', '全流程完成，回奏太子轉報皇上'),
 }
 _STATE_LABELS = {
-    'Pending': '待处理', 'Taizi': '太子', 'Zhongshu': '中书省', 'Menxia': '门下省',
-    'Assigned': '尚书省', 'Next': '待执行', 'Doing': '执行中', 'Review': '审查', 'Done': '完成',
+    'Pending': '待處理', 'Taizi': '太子', 'Zhongshu': '中書省', 'Menxia': '門下省',
+    'Assigned': '尚書省', 'Next': '待執行', 'Doing': '執行中', 'Review': '審查', 'Done': '完成',
 }
 
 
@@ -2121,13 +2300,13 @@ from dispatch import dispatch_for_state as _dispatch_impl
 def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
     """統一派發入口（轉發至 dispatch.py 封裝的實作）。"""
     _dispatch_impl(task_id, task, new_state, trigger)
-    """推进/审批后自动派发对应 Agent（后台异步，不阻塞响应）。"""
+    """推進/審批後自動派發對應 Agent（後臺異步，不阻塞響應）。"""
     agent_id = _STATE_AGENT_MAP.get(new_state)
     if agent_id is None and new_state in ('Doing', 'Next'):
         org = task.get('org', '')
         agent_id = _ORG_AGENT_MAP.get(org)
     if not agent_id:
-        log.info(f'ℹ️ {task_id} 新状态 {new_state} 无对应 Agent，跳过自动派发')
+        log.info(f'ℹ️ {task_id} 新狀態 {new_state} 無對應 Agent，跳過自動派發')
         return
 
     _update_task_scheduler(task_id, lambda t, s: (
@@ -2137,54 +2316,54 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
             'lastDispatchAgent': agent_id,
             'lastDispatchTrigger': trigger,
         }),
-        _scheduler_add_flow(t, f'已入队派发：{new_state} → {agent_id}（{trigger}）', to=_STATE_LABELS.get(new_state, new_state))
+        _scheduler_add_flow(t, f'已入隊派發：{new_state} → {agent_id}（{trigger}）', to=_STATE_LABELS.get(new_state, new_state))
     ))
 
-    title = task.get('title', '(无标题)')
+    title = task.get('title', '(無標題)')
     target_dept = task.get('targetDept', '')
 
-    # 根据 agent_id 构造针对性消息
+    # 根據 agent_id 構造針對性消息
     _msgs = {
         'taizi': (
-            f'📜 皇上旨意需要你处理\n'
-            f'任务ID: {task_id}\n'
+            f'📜 皇上旨意需要你處理\n'
+            f'任務ID: {task_id}\n'
             f'旨意: {title}\n'
-            f'⚠️ 看板已有此任务，请勿重复创建。直接用 kanban_update.py 更新状态。\n'
-            f'请立即转交中书省起草执行方案。'
+            f'⚠️ 看板已有此任務，請勿重複創建。直接用 kanban_update.py 更新狀態。\n'
+            f'請立即轉交中書省起草執行方案。'
         ),
         'zhongshu': (
-            f'📜 旨意已到中书省，请起草方案\n'
-            f'任务ID: {task_id}\n'
+            f'📜 旨意已到中書省，請起草方案\n'
+            f'任務ID: {task_id}\n'
             f'旨意: {title}\n'
-            f'⚠️ 看板已有此任务记录，请勿重复创建。直接用 kanban_update.py state 更新状态。\n'
-            f'请立即起草执行方案，走完完整三省流程（中书起草→门下审议→尚书派发→六部执行）。'
+            f'⚠️ 看板已有此任務記錄，請勿重複創建。直接用 kanban_update.py state 更新狀態。\n'
+            f'請立即起草執行方案，走完完整三省流程（中書起草→門下審議→尚書派發→六部執行）。'
         ),
         'menxia': (
-            f'📋 中书省方案提交审议\n'
-            f'任务ID: {task_id}\n'
+            f'📋 中書省方案提交審議\n'
+            f'任務ID: {task_id}\n'
             f'旨意: {title}\n'
-            f'⚠️ 看板已有此任务，请勿重复创建。\n'
-            f'请审议中书省方案，给出准奏或封驳意见。'
+            f'⚠️ 看板已有此任務，請勿重複創建。\n'
+            f'請審議中書省方案，給出準奏或封駁意見。'
         ),
         'shangshu': (
-            f'📮 门下省已准奏，请派发执行\n'
-            f'任务ID: {task_id}\n'
+            f'📮 門下省已準奏，請派發執行\n'
+            f'任務ID: {task_id}\n'
             f'旨意: {title}\n'
-            f'{"建议派发部门: " + target_dept if target_dept else ""}\n'
-            f'⚠️ 看板已有此任务，请勿重复创建。\n'
-            f'请分析方案并派发给六部执行。'
+            f'{"建議派發部門: " + target_dept if target_dept else ""}\n'
+            f'⚠️ 看板已有此任務，請勿重複創建。\n'
+            f'請分析方案並派發給六部執行。'
         ),
     }
     msg = _msgs.get(agent_id, (
-        f'📌 请处理任务\n'
-        f'任务ID: {task_id}\n'
+        f'📌 請處理任務\n'
+        f'任務ID: {task_id}\n'
         f'旨意: {title}\n'
-        f'⚠️ 看板已有此任务，请勿重复创建。直接用 kanban_update.py 更新状态。'
+        f'⚠️ 看板已有此任務，請勿重複創建。直接用 kanban_update.py 更新狀態。'
     ))
 
     def _do_dispatch():
         try:
-            # Gateway 可能暂时不可达（休眠恢复、进程重启），等待后重试
+            # Gateway 可能暫時不可達（休眠恢復、進程重啓），等待後重試
             import time as _time
             _gw_alive = False
             for _gw_attempt in range(3):
@@ -2194,7 +2373,7 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                 if _gw_attempt < 2:
                     _time.sleep(5 * (_gw_attempt + 1))  # 5s, 10s
             if not _gw_alive:
-                log.warning(f'⚠️ {task_id} 自动派发跳过: Gateway 未启动（重试3次仍不可达）')
+                log.warning(f'⚠️ {task_id} 自動派發跳過: Gateway 未啓動（重試3次仍不可達）')
                 _update_task_scheduler(task_id, lambda t, s: s.update({
                     'lastDispatchAt': now_iso(),
                     'lastDispatchStatus': 'gateway-offline',
@@ -2202,14 +2381,14 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                     'lastDispatchTrigger': trigger,
                 }))
                 return
-            # Fix #139/#182: dispatch channel 可配置；未配置时不传 --deliver 避免
-            # "unknown channel: feishu" 错误（非飞书用户）
+            # Fix #139/#182: dispatch channel 可配置；未配置時不傳 --deliver 避免
+            # "unknown channel: feishu" 錯誤（非飛書用戶）
             _agent_cfg = read_json(DATA / 'agent_config.json', {})
             _channel = (_agent_cfg.get('dispatchChannel') or '').strip()
             openclaw_bin = _resolve_openclaw_bin()
             if not openclaw_bin:
-                err = 'OpenClaw CLI 未找到：请确认已安装 openclaw 并加入 PATH；Windows 可设置 OPENCLAW_BIN 指向 openclaw.cmd'
-                log.warning(f'⚠️ {task_id} 自动派发异常: {err}')
+                err = 'OpenClaw CLI 未找到：請確認已安裝 openclaw 並加入 PATH；Windows 可設置 OPENCLAW_BIN 指向 openclaw.cmd'
+                log.warning(f'⚠️ {task_id} 自動派發異常: {err}')
                 _update_task_scheduler(task_id, lambda t, s: (
                     s.update({
                         'lastDispatchAt': now_iso(),
@@ -2218,7 +2397,7 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                         'lastDispatchTrigger': trigger,
                         'lastDispatchError': err,
                     }),
-                    _scheduler_add_flow(t, f'派发异常：OpenClaw CLI 未找到（{trigger}）', to=t.get('org', ''))
+                    _scheduler_add_flow(t, f'派發異常：OpenClaw CLI 未找到（{trigger}）', to=t.get('org', ''))
                 ))
                 return
             cmd = [openclaw_bin, 'agent', '--agent', agent_id, '-m', msg, '--timeout', '300']
@@ -2227,10 +2406,10 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
             max_retries = 2
             err = ''
             for attempt in range(1, max_retries + 1):
-                log.info(f'🔄 自动派发 {task_id} → {agent_id} (第{attempt}次)...')
+                log.info(f'🔄 自動派發 {task_id} → {agent_id} (第{attempt}次)...')
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=310)
                 if result.returncode == 0:
-                    log.info(f'✅ {task_id} 自动派发成功 → {agent_id}')
+                    log.info(f'✅ {task_id} 自動派發成功 → {agent_id}')
                     _update_task_scheduler(task_id, lambda t, s: (
                         s.update({
                             'lastDispatchAt': now_iso(),
@@ -2239,15 +2418,15 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                             'lastDispatchTrigger': trigger,
                             'lastDispatchError': '',
                         }),
-                        _scheduler_add_flow(t, f'派发成功：{agent_id}（{trigger}）', to=t.get('org', ''))
+                        _scheduler_add_flow(t, f'派發成功：{agent_id}（{trigger}）', to=t.get('org', ''))
                     ))
                     return
                 err = result.stderr[:200] if result.stderr else result.stdout[:200]
-                log.warning(f'⚠️ {task_id} 自动派发失败(第{attempt}次): {err}')
+                log.warning(f'⚠️ {task_id} 自動派發失敗(第{attempt}次): {err}')
                 if attempt < max_retries:
                     import time
                     time.sleep(5)
-            log.error(f'❌ {task_id} 自动派发最终失败 → {agent_id}')
+            log.error(f'❌ {task_id} 自動派發最終失敗 → {agent_id}')
             _update_task_scheduler(task_id, lambda t, s: (
                 s.update({
                     'lastDispatchAt': now_iso(),
@@ -2256,10 +2435,10 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                     'lastDispatchTrigger': trigger,
                     'lastDispatchError': err,
                 }),
-                _scheduler_add_flow(t, f'派发失败：{agent_id}（{trigger}）', to=t.get('org', ''))
+                _scheduler_add_flow(t, f'派發失敗：{agent_id}（{trigger}）', to=t.get('org', ''))
             ))
         except subprocess.TimeoutExpired:
-            log.error(f'❌ {task_id} 自动派发超时 → {agent_id}')
+            log.error(f'❌ {task_id} 自動派發超時 → {agent_id}')
             _update_task_scheduler(task_id, lambda t, s: (
                 s.update({
                     'lastDispatchAt': now_iso(),
@@ -2268,11 +2447,11 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                     'lastDispatchTrigger': trigger,
                     'lastDispatchError': 'timeout',
                 }),
-                _scheduler_add_flow(t, f'派发超时：{agent_id}（{trigger}）', to=t.get('org', ''))
+                _scheduler_add_flow(t, f'派發超時：{agent_id}（{trigger}）', to=t.get('org', ''))
             ))
         except FileNotFoundError as e:
             err = f'OpenClaw CLI 未找到：{e}'
-            log.warning(f'⚠️ {task_id} 自动派发异常: {err}')
+            log.warning(f'⚠️ {task_id} 自動派發異常: {err}')
             _update_task_scheduler(task_id, lambda t, s: (
                 s.update({
                     'lastDispatchAt': now_iso(),
@@ -2281,10 +2460,10 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                     'lastDispatchTrigger': trigger,
                     'lastDispatchError': err[:200],
                 }),
-                _scheduler_add_flow(t, f'派发异常：OpenClaw CLI 未找到（{trigger}）', to=t.get('org', ''))
+                _scheduler_add_flow(t, f'派發異常：OpenClaw CLI 未找到（{trigger}）', to=t.get('org', ''))
             ))
         except Exception as e:
-            log.warning(f'⚠️ {task_id} 自动派发异常: {e}')
+            log.warning(f'⚠️ {task_id} 自動派發異常: {e}')
             _update_task_scheduler(task_id, lambda t, s: (
                 s.update({
                     'lastDispatchAt': now_iso(),
@@ -2293,65 +2472,67 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                     'lastDispatchTrigger': trigger,
                     'lastDispatchError': str(e)[:200],
                 }),
-                _scheduler_add_flow(t, f'派发异常：{agent_id}（{trigger}）', to=t.get('org', ''))
+                _scheduler_add_flow(t, f'派發異常：{agent_id}（{trigger}）', to=t.get('org', ''))
             ))
 
     threading.Thread(target=_do_dispatch, daemon=True).start()
-    log.info(f'🚀 {task_id} 推进后自动派发 → {agent_id}')
+    log.info(f'🚀 {task_id} 推進後自動派發 → {agent_id}')
 
 
 def handle_advance_state(task_id, comment=''):
-    """手动推进任务到下一阶段（解卡用），推进后自动派发对应 Agent。"""
+    """手動推進任務到下一階段（解卡用）。
+
+    核心狀態與流轉寫入統一走 kanban_update 共用函式，避免 Dashboard 與 CLI 分叉。
+    """
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
-        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+        return {'ok': False, 'error': f'任務 {task_id} 不存在'}
     cur = task.get('state', '')
     if cur not in _STATE_FLOW:
-        return {'ok': False, 'error': f'任务 {task_id} 状态为 {cur}，无法推进'}
+        return {'ok': False, 'error': f'任務 {task_id} 狀態爲 {cur}，無法推進'}
+
     _ensure_scheduler(task)
     _scheduler_snapshot(task, f'advance-before-{cur}')
+
     next_state, from_dept, to_dept, default_remark = _STATE_FLOW[cur]
     remark = comment or default_remark
 
-    task['state'] = next_state
-    task['now'] = f'⬇️ 手动推进：{remark}'
-    task.setdefault('flow_log', []).append({
-        'at': now_iso(),
-        'from': from_dept,
-        'to': to_dept,
-        'remark': f'⬇️ 手动推进：{remark}'
-    })
-    _scheduler_mark_progress(task, f'手动推进 {cur} -> {next_state}')
-    task['updatedAt'] = now_iso()
-    save_tasks(tasks)
+    # 統一狀態更新 + 流轉留痕
+    set_task_state(task_id, next_state, f'⬇️ 手動推進：{remark}')
+    record_task_flow(task_id, from_dept, to_dept, f'⬇️ 手動推進：{remark}')
 
-    # 🚀 推进后自动派发对应 Agent（Done 状态无需派发）
-    if next_state != 'Done':
-        dispatch_for_state(task_id, task, next_state)
+    # 補充 scheduler 進度（Dashboard 擴展信息）
+    tasks2 = load_tasks()
+    task2 = next((t for t in tasks2 if t.get('id') == task_id), None)
+    if task2:
+        _ensure_scheduler(task2)
+        _scheduler_mark_progress(task2, f'手動推進 {cur} -> {next_state}')
+        task2['updatedAt'] = now_iso()
+        save_tasks(tasks2)
 
     from_label = _STATE_LABELS.get(cur, cur)
     to_label = _STATE_LABELS.get(next_state, next_state)
-    dispatched = ' (已自动派发 Agent)' if next_state != 'Done' else ''
+    dispatched = ' (已自動派發 Agent)' if next_state != 'Done' else ''
     return {'ok': True, 'message': f'{task_id} {from_label} → {to_label}{dispatched}'}
 
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
-        # 只记录 4xx/5xx 错误请求
+        # 只記錄 4xx/5xx 錯誤請求
         if args and len(args) >= 1:
             status = str(args[0]) if args else ''
             if status.startswith('4') or status.startswith('5'):
                 log.warning(f'{self.client_address[0]} {fmt % args}')
 
     def handle_error(self):
-        pass  # 静默处理连接错误，避免 BrokenPipe 崩溃
+        pass  # 靜默處理連接錯誤，避免 BrokenPipe 崩潰
 
     def handle(self):
         try:
             super().handle()
         except (BrokenPipeError, ConnectionResetError):
-            pass  # 客户端断开连接，忽略
+            pass  # 客戶端斷開連接，忽略
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -2386,7 +2567,7 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
     def _serve_static(self, rel_path):
-        """从 dist/ 目录提供静态文件。"""
+        """從 dist/ 目錄提供靜態文件。"""
         safe = rel_path.replace('\\', '/').lstrip('/')
         if '..' in safe:
             self.send_error(403)
@@ -2399,19 +2580,19 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     def _check_auth(self):
-        """检查认证，未通过返回 True（已发送 401 响应）。"""
+        """檢查認證，未通過返回 True（已發送 401 響應）。"""
         p = urlparse(self.path).path.rstrip('/')
         if not requires_auth(p):
             return False
         token = extract_token(self.headers)
         if not token or not verify_token(token):
-            self.send_json({'ok': False, 'error': '未登录或会话已过期'}, 401)
+            self.send_json({'ok': False, 'error': '未登錄或會話已過期'}, 401)
             return True
         return False
 
     def do_GET(self):
         p = urlparse(self.path).path.rstrip('/')
-        # 认证状态端点（公开）
+        # 認證狀態端點（公開）
         if p == '/api/auth/status':
             self.send_json({'enabled': auth_enabled(), 'configured': auth_configured()})
             return
@@ -2425,9 +2606,13 @@ class Handler(BaseHTTPRequestHandler):
             checks['dataWritable'] = os.access(str(task_data_dir), os.W_OK)
             all_ok = all(checks.values())
             self.send_json({'status': 'ok' if all_ok else 'degraded', 'ts': now_iso(), 'checks': checks})
+        elif p == '/api/source-mode':
+            cfg = _load_task_source_mode()
+            health = _backend_health(cfg)
+            effective = _effective_source_mode(cfg, health.get('ok'))
+            self.send_json({'ok': True, 'config': cfg, 'backend': health, 'effective': effective})
         elif p == '/api/live-status':
-            task_data_dir = get_task_data_dir()
-            self.send_json(read_json(task_data_dir / 'live_status.json'))
+            self.send_json(get_live_status_with_mode())
         elif p == '/api/agent-config':
             self.send_json(read_json(DATA / 'agent_config.json'))
         elif p == '/api/model-change-log':
@@ -2443,8 +2628,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(read_json(DATA / 'morning_brief_config.json', {
                 'categories': [
                     {'name': '政治', 'enabled': True},
-                    {'name': '军事', 'enabled': True},
-                    {'name': '经济', 'enabled': True},
+                    {'name': '軍事', 'enabled': True},
+                    {'name': '經濟', 'enabled': True},
                     {'name': 'AI大模型', 'enabled': True},
                 ],
                 'keywords': [], 'custom_feeds': [],
@@ -2454,10 +2639,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({'ok': True, 'channels': get_channel_info()})
         elif p.startswith('/api/morning-brief/'):
             date = p.split('/')[-1]
-            # 标准化日期格式为 YYYYMMDD（兼容 YYYY-MM-DD 输入）
+            # 標準化日期格式爲 YYYYMMDD（兼容 YYYY-MM-DD 輸入）
             date_clean = date.replace('-', '')
             if not date_clean.isdigit() or len(date_clean) != 8:
-                self.send_json({'ok': False, 'error': f'日期格式无效: {date}，请使用 YYYYMMDD'}, 400)
+                self.send_json({'ok': False, 'error': f'日期格式無效: {date}，請使用 YYYYMMDD'}, 400)
                 return
             self.send_json(read_json(DATA / f'morning_brief_{date_clean}.json', {}))
         elif p == '/api/remote-skills-list':
@@ -2505,14 +2690,14 @@ class Handler(BaseHTTPRequestHandler):
                                 content = p_out.read_text(encoding='utf-8', errors='replace')[:50000]
                                 self.send_json({'ok': True, 'taskId': task_id, 'content': content, 'exists': True})
                             except Exception as e:
-                                self.send_json({'ok': False, 'error': f'读取失败: {e}'}, 500)
+                                self.send_json({'ok': False, 'error': f'讀取失敗: {e}'}, 500)
         elif p.startswith('/api/agent-activity/'):
             agent_id = p.replace('/api/agent-activity/', '')
             if not agent_id or not _SAFE_NAME_RE.match(agent_id):
                 self.send_json({'ok': False, 'error': 'invalid agent_id'}, 400)
             else:
                 self.send_json({'ok': True, 'agentId': agent_id, 'activity': get_agent_activity(agent_id)})
-        # ── 朝堂议政 ──
+        # ── 朝堂議政 ──
         elif p == '/api/court-discuss/list':
             self.send_json({'ok': True, 'sessions': cd_list()})
         elif p == '/api/court-discuss/officials':
@@ -2524,9 +2709,9 @@ class Handler(BaseHTTPRequestHandler):
         elif p == '/api/court-discuss/fate':
             self.send_json({'ok': True, 'event': cd_fate()})
         elif self._serve_static(p):
-            pass  # 已由 _serve_static 处理 (JS/CSS/图片等)
+            pass  # 已由 _serve_static 處理 (JS/CSS/圖片等)
         else:
-            # SPA fallback：非 /api/ 路径返回 index.html
+            # SPA fallback：非 /api/ 路徑返回 index.html
             if not p.startswith('/api/'):
                 idx = DIST / 'index.html'
                 if idx.exists():
@@ -2547,23 +2732,23 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({'ok': False, 'error': 'invalid JSON'}, 400)
             return
 
-        # ── 认证端点（公开） ──
+        # ── 認證端點（公開） ──
         if p == '/api/auth/setup':
             pw = body.get('password', '')
             if not isinstance(pw, str) or not pw:
-                self.send_json({'ok': False, 'error': '请提供密码'}, 400)
+                self.send_json({'ok': False, 'error': '請提供密碼'}, 400)
                 return
             self.send_json(setup_password(pw))
             return
         if p == '/api/auth/login':
             pw = body.get('password', '')
             if not isinstance(pw, str) or not pw:
-                self.send_json({'ok': False, 'error': '请提供密码'}, 400)
+                self.send_json({'ok': False, 'error': '請提供密碼'}, 400)
                 return
             if verify_password(pw):
                 token = create_token()
                 resp = {'ok': True, 'token': token}
-                # 同时设置 HttpOnly cookie
+                # 同時設置 HttpOnly cookie
                 try:
                     body_bytes = json.dumps(resp, ensure_ascii=False).encode()
                     self.send_response(200)
@@ -2576,16 +2761,16 @@ class Handler(BaseHTTPRequestHandler):
                 except (BrokenPipeError, ConnectionResetError):
                     pass
             else:
-                self.send_json({'ok': False, 'error': '密码错误'}, 401)
+                self.send_json({'ok': False, 'error': '密碼錯誤'}, 401)
             return
 
-        # ── 认证检查 ──
+        # ── 認證檢查 ──
         if self._check_auth():
             return
 
         if p == '/api/morning-config':
             if not isinstance(body, dict):
-                self.send_json({'ok': False, 'error': '请求体必须是 JSON 对象'}, 400)
+                self.send_json({'ok': False, 'error': '請求體必須是 JSON 對象'}, 400)
                 return
             allowed_keys = {'categories', 'keywords', 'custom_feeds', 'notification', 'feishu_webhook'}
             unknown = set(body.keys()) - allowed_keys
@@ -2593,15 +2778,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({'ok': False, 'error': f'未知字段: {", ".join(unknown)}'}, 400)
                 return
             if 'categories' in body and not isinstance(body['categories'], list):
-                self.send_json({'ok': False, 'error': 'categories 必须是数组'}, 400)
+                self.send_json({'ok': False, 'error': 'categories 必須是數組'}, 400)
                 return
             if 'keywords' in body and not isinstance(body['keywords'], list):
-                self.send_json({'ok': False, 'error': 'keywords 必须是数组'}, 400)
+                self.send_json({'ok': False, 'error': 'keywords 必須是數組'}, 400)
                 return
             if 'notification' in body:
                 noti = body['notification']
                 if not isinstance(noti, dict):
-                    self.send_json({'ok': False, 'error': 'notification 必须是对象'}, 400)
+                    self.send_json({'ok': False, 'error': 'notification 必須是對象'}, 400)
                     return
                 channel_type = noti.get('channel', 'feishu')
                 if channel_type not in NOTIFICATION_CHANNELS:
@@ -2611,14 +2796,14 @@ class Handler(BaseHTTPRequestHandler):
                 if webhook:
                     channel_cls = get_channel(channel_type)
                     if channel_cls and not channel_cls.validate_webhook(webhook):
-                        self.send_json({'ok': False, 'error': f'{channel_cls.label} Webhook URL 无效'}, 400)
+                        self.send_json({'ok': False, 'error': f'{channel_cls.label} Webhook URL 無效'}, 400)
                         return
             webhook_legacy = body.get('feishu_webhook', '').strip()
             if webhook_legacy and 'notification' not in body:
                 body['notification'] = {'enabled': True, 'channel': 'feishu', 'webhook': webhook_legacy}
             cfg_path = DATA / 'morning_brief_config.json'
             cfg_path.write_text(json.dumps(body, ensure_ascii=False, indent=2))
-            self.send_json({'ok': True, 'message': '订阅配置已保存'})
+            self.send_json({'ok': True, 'message': '訂閱配置已保存'})
             return
 
         if p == '/api/scheduler-scan':
@@ -2665,7 +2850,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if p == '/api/morning-brief/refresh':
-            force = body.get('force', True)  # 从看板手动触发默认强制
+            force = body.get('force', True)  # 從看板手動觸發默認強制
             def do_refresh():
                 try:
                     cmd = [python_bin(), str(SCRIPTS / 'fetch_morning_news.py')]
@@ -2676,7 +2861,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f'[refresh error] {e}', file=sys.stderr)
             threading.Thread(target=do_refresh, daemon=True).start()
-            self.send_json({'ok': True, 'message': '采集已触发，约30-60秒后刷新'})
+            self.send_json({'ok': True, 'message': '採集已觸發，約30-60秒後刷新'})
             return
 
         if p == '/api/add-skill':
@@ -2731,7 +2916,7 @@ class Handler(BaseHTTPRequestHandler):
         if p == '/api/task-action':
             task_id = body.get('taskId', '').strip()
             action = body.get('action', '').strip()  # stop, cancel, resume
-            reason = body.get('reason', '').strip() or f'皇上从看板{action}'
+            reason = body.get('reason', '').strip() or f'皇上從看板{action}'
             if not task_id or action not in ('stop', 'cancel', 'resume'):
                 self.send_json({'ok': False, 'error': 'taskId and action(stop/cancel/resume) required'}, 400)
                 return
@@ -2756,7 +2941,7 @@ class Handler(BaseHTTPRequestHandler):
             if not task_id:
                 self.send_json({'ok': False, 'error': 'taskId required'}, 400)
                 return
-            # todos 输入校验
+            # todos 輸入校驗
             if not isinstance(todos, list) or len(todos) > 200:
                 self.send_json({'ok': False, 'error': 'todos must be a list (max 200 items)'}, 400)
                 return
@@ -2773,8 +2958,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == '/api/create-task':
             title = body.get('title', '').strip()
-            org = body.get('org', '中书省').strip()
-            official = body.get('official', '中书令').strip()
+            org = body.get('org', '中書省').strip()
+            official = body.get('official', '中書令').strip()
             priority = body.get('priority', 'normal').strip()
             template_id = body.get('templateId', '')
             params = body.get('params', {})
@@ -2843,7 +3028,7 @@ class Handler(BaseHTTPRequestHandler):
             threading.Thread(target=apply_async, daemon=True).start()
             self.send_json({'ok': True, 'message': f'Queued: {agent_id} → {model}'})
 
-        # Fix #139: 设置派发渠道（feishu/telegram/wecom/signal/tui）
+        # Fix #139: 設置派發渠道（feishu/telegram/wecom/signal/tui）
         elif p == '/api/set-dispatch-channel':
             channel = body.get('channel', '').strip()
             allowed = {'feishu', 'telegram', 'wecom', 'signal', 'tui', 'discord', 'slack'}
@@ -2854,9 +3039,9 @@ class Handler(BaseHTTPRequestHandler):
                 cfg['dispatchChannel'] = channel
                 return cfg
             atomic_json_update(DATA / 'agent_config.json', _set_channel, {})
-            self.send_json({'ok': True, 'message': f'派发渠道已切换为 {channel}'})
+            self.send_json({'ok': True, 'message': f'派發渠道已切換爲 {channel}'})
 
-        # ── 朝堂议政 POST ──
+        # ── 朝堂議政 POST ──
         elif p == '/api/court-discuss/start':
             topic = body.get('topic', '').strip()
             officials = body.get('officials', [])
@@ -2867,11 +3052,11 @@ class Handler(BaseHTTPRequestHandler):
             if not officials or not isinstance(officials, list):
                 self.send_json({'ok': False, 'error': 'officials list required'}, 400)
                 return
-            # 校验官员 ID
+            # 校驗官員 ID
             valid_ids = set(CD_PROFILES.keys())
             officials = [o for o in officials if o in valid_ids]
             if len(officials) < 2:
-                self.send_json({'ok': False, 'error': '至少选择2位官员'}, 400)
+                self.send_json({'ok': False, 'error': '至少選擇2位官員'}, 400)
                 return
             self.send_json(cd_create(topic, officials, task_id))
 
@@ -2902,7 +3087,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='三省六部看板服务器')
+    parser = argparse.ArgumentParser(description='三省六部看板服務器')
     parser.add_argument('--port', type=int, default=7891)
     parser.add_argument('--host', default='0.0.0.0')
     parser.add_argument('--cors', default=None, help='Allowed CORS origin (default: reflect request Origin header)')
@@ -2916,21 +3101,21 @@ def main():
     }
 
     server = HTTPServer((args.host, args.port), Handler)
-    log.info(f'三省六部看板启动 → http://{args.host}:{args.port}')
+    log.info(f'三省六部看板啓動 → http://{args.host}:{args.port}')
     print(f'   按 Ctrl+C 停止')
 
     auth_init(DATA)
     if auth_enabled():
-        log.info('🔒 JWT 认证已启用')
+        log.info('🔒 JWT 認證已啓用')
     else:
-        log.info('🔓 认证未配置，所有 API 公开访问（POST /api/auth/setup 设置密码）')
+        log.info('🔓 認證未配置，所有 API 公開訪問（POST /api/auth/setup 設置密碼）')
 
     migrate_notification_config()
 
-    # 启动恢复：重新派发上次被 kill 中断的 queued 任务
+    # 啓動恢復：重新派發上次被 kill 中斷的 queued 任務
     threading.Timer(3.0, _startup_recover_queued_dispatches).start()
 
-    # 定时巡检：每 120 秒自动扫描停滞任务并触发重试/升级/回滚
+    # 定時巡檢：每 120 秒自動掃描停滯任務並觸發重試/升級/回滾
     def _periodic_scheduler_scan():
         while True:
             try:
@@ -2939,11 +3124,11 @@ def main():
                 result = handle_scheduler_scan(threshold_sec=180)
                 count = result.get('count', 0) if isinstance(result, dict) else 0
                 if count > 0:
-                    log.info(f'🔍 定时巡检：{count} 个动作')
+                    log.info(f'🔍 定時巡檢：{count} 個動作')
             except Exception as e:
-                log.warning(f'定时巡检异常: {e}')
+                log.warning(f'定時巡檢異常: {e}')
     threading.Thread(target=_periodic_scheduler_scan, daemon=True).start()
-    log.info('🔍 定时巡检已启动（每120秒）')
+    log.info('🔍 定時巡檢已啓動（每120秒）')
 
     try:
         server.serve_forever()

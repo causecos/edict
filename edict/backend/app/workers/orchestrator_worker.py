@@ -181,10 +181,11 @@ class OrchestratorWorker:
             event_type="task.dispatch.request",
             producer="orchestrator",
             payload={
+                **payload,
                 "task_id": task_id,
                 "agent": agent,
                 "state": state,
-                "message": f"新任務已創建: {payload.get('title', '')}",
+                "message": payload.get("message") or f"新任務已創建: {payload.get('title', '')}",
             },
         )
 
@@ -223,10 +224,11 @@ class OrchestratorWorker:
                 event_type="task.dispatch.request",
                 producer="orchestrator",
                 payload={
+                    **payload,
                     "task_id": task_id,
                     "agent": agent,
                     "state": new_state_str,
-                    "message": f"任務已流轉到 {new_state_str}",
+                    "message": payload.get("message") or payload.get("reason") or f"任務已流轉到 {new_state_str}",
                 },
             )
 

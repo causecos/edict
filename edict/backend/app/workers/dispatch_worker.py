@@ -114,6 +114,10 @@ def _build_task_context(payload: dict) -> str:
     if description:
         sections.append(f"\n### 任務描述\n{description}")
 
+    report = payload.get("report", "")
+    if report:
+        sections.append(f"\n### 最新回奏\n{report}")
+
     # Todos
     todos = payload.get("todos", [])
     if todos:
@@ -127,14 +131,20 @@ def _build_task_context(payload: dict) -> str:
     flow_log = payload.get("flow_log", [])
     if flow_log:
         recent = flow_log[-5:]
-        flow_lines = [f"  - [{e.get('at', '')}] {e.get('from', '')} → {e.get('to', '')}: {e.get('remark', '')}" for e in recent]
+        flow_lines = [
+            f"  - [{e.get('at') or e.get('ts') or ''}] {e.get('from', '')} → {e.get('to', '')}: {e.get('remark') or e.get('reason') or ''}"
+            for e in recent
+        ]
         sections.append(f"\n### 最近流轉\n" + "\n".join(flow_lines))
 
     # 最近進展 (最多 3 條)
     progress_log = payload.get("progress_log", [])
     if progress_log:
         recent = progress_log[-3:]
-        prog_lines = [f"  - [{e.get('at', '')}] {e.get('agentLabel', e.get('agent', ''))}: {e.get('text', '')}" for e in recent]
+        prog_lines = [
+            f"  - [{e.get('at') or e.get('ts') or ''}] {e.get('agentLabel', e.get('agent', ''))}: {e.get('text') or e.get('content') or ''}"
+            for e in recent
+        ]
         sections.append(f"\n### 最近進展\n" + "\n".join(prog_lines))
 
     # 阻塞信息

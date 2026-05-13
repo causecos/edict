@@ -34,6 +34,46 @@ class TaskService:
         # event_bus 保留用於 request_dispatch 等直接發布場景
         self.bus = event_bus
 
+    @staticmethod
+    def _report_text(task: Task, fallback: str = "") -> str:
+        """統一「回奏內容」來源，供 DB 欄位與事件 payload 共用。"""
+        progress_log = task.progress_log or []
+        if progress_log:
+            last = progress_log[-1]
+            text = (last.get("text") or last.get("content") or "").strip()
+            if text:
+                return text
+
+        for field in ("now", "output", "ac", "description"):
+            val = (getattr(task, field, "") or "").strip()
+            if val:
+                return val
+        return (fallback or "").strip()
+
+    @classmethod
+    def _dispatch_snapshot(cls, task: Task, *, message: str = "") -> dict[str, Any]:
+        """生成可直接給 Event Bus / Dispatcher 的任務快照。"""
+        report = cls._report_text(task, fallback=message)
+        return {
+            "task_id": str(task.task_id),
+            "title": task.title,
+            "description": task.description or "",
+            "state": task.state.value if isinstance(task.state, TaskState) else str(task.state or ""),
+            "org": task.org or Task.org_for_state(task.state, task.assignee_org),
+            "priority": task.priority or "中",
+            "assignee_org": task.assignee_org,
+            "tags": task.tags or [],
+            "todos": task.todos or [],
+            "flow_log": task.flow_log or [],
+            "progress_log": task.progress_log or [],
+            "block": task.block or "",
+            "meta": task.meta or {},
+            "now": task.now or "",
+            "output": task.output or "",
+            "report": report,
+            "message": message or report,
+        }
+
     # ── 創建 ──
 
     async def create_task(
@@ -72,7 +112,9 @@ class TaskService:
                     "to": initial_state.value,
                     "agent": "system",
                     "reason": "任務創建",
+                    "remark": "任務創建",
                     "ts": now.isoformat(),
+                    "at": now.isoformat(),
                 }
             ],
             progress_log=[],
@@ -89,13 +131,7 @@ class TaskService:
             trace_id=trace_id,
             event_type="task.created",
             producer="task_service",
-            payload={
-                "task_id": str(task.task_id),
-                "title": title,
-                "state": initial_state.value,
-                "priority": priority,
-                "assignee_org": assignee_org,
-            },
+            payload=self._dispatch_snapshot(task, message=f"新任務已創建: {title}"),
         )
         self.db.add(outbox)
 
@@ -134,6 +170,8 @@ class TaskService:
         task.org = Task.org_for_state(new_state, task.assignee_org)
         if reason:
             task.now = reason
+            if new_state in TERMINAL_STATES and not (task.output or "").strip():
+                task.output = reason
         task.updated_at = datetime.now(timezone.utc)
 
         # 在行鎖保護下安全追加 flow_log
@@ -142,7 +180,9 @@ class TaskService:
             "to": new_state.value,
             "agent": agent,
             "reason": reason,
+            "remark": reason,
             "ts": datetime.now(timezone.utc).isoformat(),
+            "at": datetime.now(timezone.utc).isoformat(),
         }
         if task.flow_log is None:
             task.flow_log = []
@@ -156,11 +196,10 @@ class TaskService:
             event_type=f"task.state.{new_state.value}",
             producer=agent,
             payload={
-                "task_id": str(task_id),
+                **self._dispatch_snapshot(task, message=reason or f"任務已流轉到 {new_state.value}"),
                 "from": old_state.value,
                 "to": new_state.value,
                 "reason": reason,
-                "assignee_org": task.assignee_org,
             },
         )
         self.db.add(outbox)
@@ -185,10 +224,9 @@ class TaskService:
             event_type="task.dispatch.request",
             producer="task_service",
             payload={
-                "task_id": str(task_id),
+                **self._dispatch_snapshot(task, message=message),
                 "agent": target_agent,
-                "message": message,
-                "state": task.state.value,
+                "message": message or self._report_text(task),
             },
         )
         self.db.add(outbox)
@@ -204,14 +242,19 @@ class TaskService:
         content: str,
     ) -> Task:
         task = await self._get_task(task_id)
+        now_ts = datetime.now(timezone.utc).isoformat()
         entry = {
             "agent": agent,
+            "agentLabel": agent,
+            "text": content,
             "content": content,
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": now_ts,
+            "at": now_ts,
         }
         if task.progress_log is None:
             task.progress_log = []
         task.progress_log = [*task.progress_log, entry]
+        task.now = content or task.now
         task.updated_at = datetime.now(timezone.utc)
         await self.db.commit()
         return task

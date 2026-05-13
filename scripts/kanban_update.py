@@ -1030,21 +1030,11 @@ def _todo_brief(task):
     return f'{done}/{total} 完成'
 
 
-def _content_brief(task):
-    """盡量回傳可讀內容，避免顯示「無需求描述」。"""
+def _report_brief(task):
+    """回奏內容優先：先取進度/結案語，再回退到需求字段。"""
     cands = []
-    for key in ('description', 'ac', 'output', 'remark', 'now'):
-        val = (task.get(key) or '').strip()
-        if val:
-            cands.append(val)
 
-    flow_log = task.get('flow_log') or []
-    if flow_log:
-        last = flow_log[-1]
-        flow_reason = (last.get('reason') or last.get('remark') or '').strip()
-        if flow_reason:
-            cands.append(flow_reason)
-
+    # 1) 最新進度（最接近太子對皇上的回奏語氣）
     progress_log = task.get('progress_log') or []
     if progress_log:
         last_p = progress_log[-1]
@@ -1052,10 +1042,29 @@ def _content_brief(task):
         if ptxt:
             cands.append(ptxt)
 
+    # 2) now（看板當前動態）
+    now_txt = (task.get('now') or '').strip()
+    if now_txt:
+        cands.append(now_txt)
+
+    # 3) 流轉原因（最近一次）
+    flow_log = task.get('flow_log') or []
+    if flow_log:
+        last = flow_log[-1]
+        flow_reason = (last.get('reason') or last.get('remark') or '').strip()
+        if flow_reason:
+            cands.append(flow_reason)
+
+    # 4) 其他補充字段
+    for key in ('output', 'ac', 'description', 'remark'):
+        val = (task.get(key) or '').strip()
+        if val:
+            cands.append(val)
+
     for c in cands:
         if c and c not in ('無', '-'):
             return _short_text(c, 100)
-    return '（目前尚未填寫需求內容）'
+    return '（目前尚無可回奏內容）'
 
 
 def cmd_list(state='', active_only=False, show_id=False, limit=0, brief=False, full=False, include_session=False):
@@ -1103,8 +1112,8 @@ def cmd_list(state='', active_only=False, show_id=False, limit=0, brief=False, f
         print(f"   進度：{now_txt}")
 
         if full:
-            desc = _content_brief(t)
-            print(f"   內容：{desc}")
+            report = _report_brief(t)
+            print(f"   回奏：{report}")
             print(f"   子任務：{_todo_brief(t)}")
             flow_log = t.get('flow_log') or []
             if flow_log:

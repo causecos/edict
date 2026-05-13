@@ -33,6 +33,10 @@
   python3 kanban_update.py list --brief        # 只看標題/狀態/部門
   python3 kanban_update.py list --include-session  # 顯示會話映射項
 
+  # TG/中文 CLI 別名
+  python3 kanban_update.py 任務清單 完整
+  python3 kanban_update.py 任務清單 進行中 完整
+
   # 🔥 实时进展汇报（Agent 主动调用，频率不限）
   python3 kanban_update.py progress JJC-20260223-012 "正在分析需求，拟定3个子方案" "1.调研技术选型|2.撰写设计文档|3.实现原型"
 """
@@ -1122,7 +1126,13 @@ if __name__ == '__main__':
     if not args:
         print(__doc__)
         sys.exit(0)
-    cmd = args[0]
+
+    # TG/中文命令別名：任務清單 [完整|簡略|進行中]
+    raw_cmd = args[0]
+    cmd = raw_cmd
+    if raw_cmd in ('任務清單', '任务清单'):
+        cmd = 'list'
+
     if cmd in _CMD_MIN_ARGS and len(args) < _CMD_MIN_ARGS[cmd]:
         print(f'错误："{cmd}" 命令至少需要 {_CMD_MIN_ARGS[cmd]} 个参数，实际 {len(args)} 个')
         print(__doc__)
@@ -1211,6 +1221,21 @@ if __name__ == '__main__':
         include_session = '--include-session' in args
         state = ''
         limit = 0
+
+        # 支援 TG/中文關鍵詞：任務清單 完整 / 簡略 / 進行中
+        for tok in args[1:]:
+            t = str(tok).strip().lower()
+            if t in ('完整', '完整版', 'full'):
+                full = True
+            elif t in ('簡略', '简略', 'brief'):
+                brief = True
+            elif t in ('進行中', '进行中', 'active'):
+                active_only = True
+            elif t in ('顯示id', '显示id', 'show-id'):
+                show_id = True
+            elif t in ('含會話', '含会话', 'include-session'):
+                include_session = True
+
         i = 1
         while i < len(args):
             if args[i] == '--state' and i + 1 < len(args):

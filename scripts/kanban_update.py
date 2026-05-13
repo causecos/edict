@@ -31,6 +31,7 @@
   python3 kanban_update.py list --active --full
   python3 kanban_update.py list --show-id      # 需要時才顯示技術 ID
   python3 kanban_update.py list --brief        # 只看標題/狀態/部門
+  python3 kanban_update.py list --include-session  # 顯示會話映射項
 
   # 🔥 实时进展汇报（Agent 主动调用，频率不限）
   python3 kanban_update.py progress JJC-20260223-012 "正在分析需求，拟定3个子方案" "1.调研技术选型|2.撰写设计文档|3.实现原型"
@@ -1025,10 +1026,18 @@ def _todo_brief(task):
     return f'{done}/{total} 完成'
 
 
-def cmd_list(state='', active_only=False, show_id=False, limit=0, brief=False, full=False):
+def cmd_list(state='', active_only=False, show_id=False, limit=0, brief=False, full=False, include_session=False):
     """列出任務清單（預設顯示可讀內容，避免只見技術 ID）。"""
     tasks = atomic_json_read(TASKS_FILE) or []
 
+    def _is_session_mirror(t):
+        tid = (t.get('id') or '')
+        desc = (t.get('description') or '')
+        title = (t.get('title') or '')
+        return tid.startswith('OC-') or 'runtime sessions' in desc or title.endswith('會話')
+
+    if not include_session:
+        tasks = [t for t in tasks if not _is_session_mirror(t)]
     if state:
         tasks = [t for t in tasks if (t.get('state') or '').lower() == state.lower()]
     if active_only:
@@ -1171,6 +1180,7 @@ if __name__ == '__main__':
         active_only = '--active' in args
         brief = '--brief' in args
         full = '--full' in args
+        include_session = '--include-session' in args
         state = ''
         limit = 0
         i = 1
@@ -1181,7 +1191,15 @@ if __name__ == '__main__':
                 limit = args[i + 1]; i += 2
             else:
                 i += 1
-        cmd_list(state=state, active_only=active_only, show_id=show_id, limit=limit, brief=brief, full=full)
+        cmd_list(
+            state=state,
+            active_only=active_only,
+            show_id=show_id,
+            limit=limit,
+            brief=brief,
+            full=full,
+            include_session=include_session,
+        )
     else:
         print(__doc__)
         sys.exit(1)

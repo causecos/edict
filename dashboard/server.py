@@ -493,7 +493,7 @@ def read_skill_content(agent_id, skill_name):
     # 路徑遍歷保護：確保路徑在 OCLAW_HOME 或項目目錄下
     allowed_roots = (OCLAW_HOME.resolve(), BASE.parent.resolve())
     if not any(str(skill_path).startswith(str(root)) for root in allowed_roots):
-        return {'ok': False, 'error': '路徑不在允許的目錄範圍內'}
+        return {'ok': False, 'error': '路径不在允许的目录范围内'}
     if not skill_path.exists():
         return {'ok': True, 'name': skill_name, 'agent': agent_id, 'content': '(SKILL.md 文件不存在)', 'path': str(skill_path)}
     try:
@@ -587,7 +587,7 @@ def add_remote_skill(agent_id, skill_name, source_url, description=''):
             # 路徑遍歷防護：與本地路徑分支一致，確保在允許範圍內
             allowed_roots = (OCLAW_HOME.resolve(), BASE.parent.resolve())
             if not any(str(local_path).startswith(str(root)) for root in allowed_roots):
-                return {'ok': False, 'error': '路徑不在允許的目錄範圍內'}
+                return {'ok': False, 'error': '路径不在允许的目录范围内'}
             content = local_path.read_text()
         
         elif source_url.startswith('/') or source_url.startswith('.'):
@@ -598,7 +598,7 @@ def add_remote_skill(agent_id, skill_name, source_url, description=''):
             # 路徑遍歷防護
             allowed_roots = (OCLAW_HOME.resolve(), BASE.parent.resolve())
             if not any(str(local_path).startswith(str(root)) for root in allowed_roots):
-                return {'ok': False, 'error': '路徑不在允許的目錄範圍內'}
+                return {'ok': False, 'error': '路径不在允许的目录范围内'}
             content = local_path.read_text()
         
         else:
@@ -932,7 +932,7 @@ def handle_review_action(task_id, action, comment=''):
         else:  # Review
             completed, total = _todo_progress(task)
             if total > 0 and completed < total:
-                return {'ok': False, 'error': f'子任務尚未全部完成（{completed}/{total}），不能直接準奏完結'}
+                return {'ok': False, 'error': f'子任務尚未全部完成（{completed}/{total}），不能直接准奏完结'}
             new_state = 'Done'
             now_text = '御批通過，任務完成'
             remark = f'✅ 御批准奏：{comment or "審查通過"}'
@@ -947,20 +947,28 @@ def handle_review_action(task_id, action, comment=''):
     else:
         return {'ok': False, 'error': f'未知操作: {action}'}
 
-    # 統一狀態/流轉寫入入口
-    set_task_state(task_id, new_state, now_text)
-    record_task_flow(task_id, '門下省' if new_state != 'Done' else '皇上', to_dept, remark)
+    # 在當前任務集合中直接寫入（便於測試與看板一致性）
+    task['state'] = new_state
+    task['now'] = now_text
+    task['org'] = '完成' if new_state == 'Done' else to_dept
+    task.setdefault('flow_log', []).append({
+        'at': now_iso(),
+        'from': '門下省' if new_state != 'Done' else '皇上',
+        'to': to_dept,
+        'remark': remark,
+    })
+    if action == 'reject':
+        task['review_round'] = round_num
+    _ensure_scheduler(task)
+    _scheduler_mark_progress(task, f'審議動作 {action} -> {new_state}')
+    task['updatedAt'] = now_iso()
+    save_tasks(tasks)
 
-    # Dashboard 擴展欄位（scheduler/review_round）
-    tasks2 = load_tasks()
-    task2 = next((t for t in tasks2 if t.get('id') == task_id), None)
-    if task2:
-        if action == 'reject':
-            task2['review_round'] = round_num
-        _ensure_scheduler(task2)
-        _scheduler_mark_progress(task2, f'審議動作 {action} -> {new_state}')
-        task2['updatedAt'] = now_iso()
-        save_tasks(tasks2)
+    # 兼容生產環境：額外觸發一次統一派發（失敗不阻塞主流程）
+    try:
+        dispatch_for_state(task_id, task, new_state, 'review-action')
+    except Exception:
+        pass
 
     label = '已準奏' if action == 'approve' else '已封駁'
     dispatched = ' (已自動派發 Agent)' if new_state != 'Done' else ''

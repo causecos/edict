@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 同步 openclaw.json 中的 agent 配置 → data/agent_config.json
-支持自动发现 agent workspace 下的 Skills 目录
+支持自動發現 agent workspace 下的 Skills 目錄
 """
 import json, os, pathlib, datetime, logging
 from file_lock import atomic_json_write
@@ -17,18 +17,18 @@ OPENCLAW_HOME = get_openclaw_home()
 OPENCLAW_CFG = OPENCLAW_HOME / 'openclaw.json'
 
 ID_LABEL = {
-    'taizi':    {'label': '太子',   'role': '太子',     'duty': '飞书消息分拣与回奏',  'emoji': '🤴'},
-    'main':     {'label': '太子',   'role': '太子',     'duty': '飞书消息分拣与回奏',  'emoji': '🤴'},  # 兼容旧配置
-    'zhongshu': {'label': '中书省', 'role': '中书令',   'duty': '起草任务令与优先级',  'emoji': '📜'},
-    'menxia':   {'label': '门下省', 'role': '侍中',     'duty': '审议与退回机制',      'emoji': '🔍'},
-    'shangshu': {'label': '尚书省', 'role': '尚书令',   'duty': '派单与升级裁决',      'emoji': '📮'},
-    'libu':     {'label': '礼部',   'role': '礼部尚书', 'duty': '文档/汇报/规范',      'emoji': '📝'},
-    'hubu':     {'label': '户部',   'role': '户部尚书', 'duty': '资源/预算/成本',      'emoji': '💰'},
-    'bingbu':   {'label': '兵部',   'role': '兵部尚书', 'duty': '工程实现与架构设计',  'emoji': '⚔️'},
-    'xingbu':   {'label': '刑部',   'role': '刑部尚书', 'duty': '合规/审计/红线',      'emoji': '⚖️'},
-    'gongbu':   {'label': '工部',   'role': '工部尚书', 'duty': '基础设施与部署运维',  'emoji': '🔧'},
-    'libu_hr':  {'label': '吏部',   'role': '吏部尚书', 'duty': '人事/培训/Agent管理',  'emoji': '👔'},
-    'zaochao':  {'label': '钦天监', 'role': '朝报官',   'duty': '每日新闻采集与简报',  'emoji': '📰'},
+    'taizi':    {'label': '太子',   'role': '太子',     'duty': '飛書消息分揀與回奏',  'emoji': '🤴'},
+    'main':     {'label': '太子',   'role': '太子',     'duty': '飛書消息分揀與回奏',  'emoji': '🤴'},  # 兼容舊配置
+    'zhongshu': {'label': '中書省', 'role': '中書令',   'duty': '起草任務令與優先級',  'emoji': '📜'},
+    'menxia':   {'label': '門下省', 'role': '侍中',     'duty': '審議與退回機制',      'emoji': '🔍'},
+    'shangshu': {'label': '尚書省', 'role': '尚書令',   'duty': '派單與升級裁決',      'emoji': '📮'},
+    'libu':     {'label': '禮部',   'role': '禮部尚書', 'duty': '文檔/匯報/規範',      'emoji': '📝'},
+    'hubu':     {'label': '戶部',   'role': '戶部尚書', 'duty': '資源/預算/成本',      'emoji': '💰'},
+    'bingbu':   {'label': '兵部',   'role': '兵部尚書', 'duty': '工程實現與架構設計',  'emoji': '⚔️'},
+    'xingbu':   {'label': '刑部',   'role': '刑部尚書', 'duty': '合規/審計/紅線',      'emoji': '⚖️'},
+    'gongbu':   {'label': '工部',   'role': '工部尚書', 'duty': '基礎設施與部署運維',  'emoji': '🔧'},
+    'libu_hr':  {'label': '吏部',   'role': '吏部尚書', 'duty': '人事/培訓/Agent管理',  'emoji': '👔'},
+    'zaochao':  {'label': '欽天監', 'role': '朝報官',   'duty': '每日新聞採集與簡報',  'emoji': '📰'},
 }
 
 KNOWN_MODELS = [
@@ -74,16 +74,16 @@ def get_skills(workspace: str):
                                     desc = line[:100]
                                     break
                         except Exception:
-                            desc = '(读取失败)'
+                            desc = '(讀取失敗)'
                     skills.append({'name': d.name, 'path': str(md), 'exists': md.exists(), 'description': desc})
     except PermissionError as e:
-        log.warning(f'Skills 目录访问受限: {e}')
+        log.warning(f'Skills 目錄訪問受限: {e}')
     return skills
 
 
 def _collect_openclaw_models(cfg):
-    """从 openclaw.json 中收集所有已配置的 model id，与 KNOWN_MODELS 合并去重。
-    解决 #127: 自定义 provider 的 model 不在下拉列表中。
+    """從 openclaw.json 中收集所有已配置的 model id，與 KNOWN_MODELS 合併去重。
+    解決 #127: 自定義 provider 的 model 不在下拉列表中。
     """
     known_ids = {m['id'] for m in KNOWN_MODELS}
     extra = []
@@ -93,7 +93,7 @@ def _collect_openclaw_models(cfg):
     if dm and dm not in known_ids:
         extra.append({'id': dm, 'label': dm, 'provider': 'OpenClaw'})
         known_ids.add(dm)
-    # 收集 defaults.models 中的所有模型（OpenClaw 默认启用的模型列表）
+    # 收集 defaults.models 中的所有模型（OpenClaw 默認啓用的模型列表）
     defaults_models = agents_cfg.get('defaults', {}).get('models', {})
     if isinstance(defaults_models, dict):
         for model_id in defaults_models.keys():
@@ -103,7 +103,7 @@ def _collect_openclaw_models(cfg):
                     provider = model_id.split('/')[0]
                 extra.append({'id': model_id, 'label': model_id, 'provider': provider})
                 known_ids.add(model_id)
-    # 收集每个 agent 的 model
+    # 收集每個 agent 的 model
     for ag in agents_cfg.get('list', []):
         m = normalize_model(ag.get('model', ''), '')
         if m and m not in known_ids:
@@ -155,7 +155,7 @@ def main():
         })
         seen_ids.add(ag_id)
 
-    # 补充不在 openclaw.json agents list 中的 agent（兼容旧版 main）
+    # 補充不在 openclaw.json agents list 中的 agent（兼容舊版 main）
     EXTRA_AGENTS = {
         'taizi':   {'model': default_model, 'workspace': str(OPENCLAW_HOME / 'workspace-taizi'),
                     'allowAgents': ['zhongshu']},
@@ -201,13 +201,13 @@ def main():
     atomic_json_write(DATA / 'agent_config.json', payload)
     log.info(f'{len(result)} agents synced')
 
-    # 自动部署 SOUL.md 到 workspace（如果项目里有更新）
+    # 自動部署 SOUL.md 到 workspace（如果項目裏有更新）
     deploy_soul_files()
     # 同步 scripts/ 到各 workspace（保持 kanban_update.py 等最新）
     sync_scripts_to_workspaces()
 
 
-# 项目 agents/ 目录名 → 运行时 agent_id 映射
+# 項目 agents/ 目錄名 → 運行時 agent_id 映射
 _SOUL_DEPLOY_MAP = {
     'taizi': 'taizi',
     'zhongshu': 'zhongshu',
@@ -256,7 +256,7 @@ def _sync_script_symlink(src_file: pathlib.Path, dst_file: pathlib.Path) -> bool
 
 
 def sync_scripts_to_workspaces():
-    """将项目 scripts/ 目录同步到各 agent workspace（保持 kanban_update.py 等最新）
+    """將項目 scripts/ 目錄同步到各 agent workspace（保持 kanban_update.py 等最新）
 
     Uses symlinks so that ``__file__`` in workspace copies resolves to the
     project ``scripts/`` directory, keeping path-derived constants like
@@ -265,9 +265,10 @@ def sync_scripts_to_workspaces():
     scripts_src = BASE / 'scripts'
     if not scripts_src.is_dir():
         return
+    home = get_openclaw_home()
     synced = 0
     for proj_name, runtime_id in _SOUL_DEPLOY_MAP.items():
-        ws_scripts = OPENCLAW_HOME / f'workspace-{runtime_id}' / 'scripts'
+        ws_scripts = home / f'workspace-{runtime_id}' / 'scripts'
         ws_scripts.mkdir(parents=True, exist_ok=True)
         for src_file in scripts_src.iterdir():
             if src_file.suffix not in ('.py', '.sh') or src_file.stem.startswith('__'):
@@ -279,7 +280,7 @@ def sync_scripts_to_workspaces():
             except Exception:
                 continue
     # also sync to workspace-main for legacy compatibility
-    ws_main_scripts = OPENCLAW_HOME / 'workspace-main' / 'scripts'
+    ws_main_scripts = home / 'workspace-main' / 'scripts'
     ws_main_scripts.mkdir(parents=True, exist_ok=True)
     for src_file in scripts_src.iterdir():
         if src_file.suffix not in ('.py', '.sh') or src_file.stem.startswith('__'):
@@ -295,16 +296,17 @@ def sync_scripts_to_workspaces():
 
 
 def deploy_soul_files():
-    """将项目 agents/xxx/SOUL.md 部署到 ~/.openclaw/workspace-xxx/SOUL.md"""
+    """將項目 agents/xxx/SOUL.md 部署到 ~/.openclaw/workspace-xxx/SOUL.md"""
     agents_dir = BASE / 'agents'
+    home = get_openclaw_home()
     deployed = 0
     for proj_name, runtime_id in _SOUL_DEPLOY_MAP.items():
         src = agents_dir / proj_name / 'SOUL.md'
         if not src.exists():
             continue
-        ws_dst = OPENCLAW_HOME / f'workspace-{runtime_id}' / 'SOUL.md'
+        ws_dst = home / f'workspace-{runtime_id}' / 'SOUL.md'
         ws_dst.parent.mkdir(parents=True, exist_ok=True)
-        # 只在内容不同时更新（避免不必要的写入）
+        # 只在內容不同時更新（避免不必要的寫入）
         src_text = src.read_text(encoding='utf-8', errors='ignore')
         try:
             dst_text = ws_dst.read_text(encoding='utf-8', errors='ignore')
@@ -313,9 +315,9 @@ def deploy_soul_files():
         if src_text != dst_text:
             ws_dst.write_text(src_text, encoding='utf-8')
             deployed += 1
-        # 太子兼容：同步一份到 legacy main agent 目录
+        # 太子兼容：同步一份到 legacy main agent 目錄
         if runtime_id == 'taizi':
-            ag_dst = OPENCLAW_HOME / 'agents' / 'main' / 'SOUL.md'
+            ag_dst = home / 'agents' / 'main' / 'SOUL.md'
             ag_dst.parent.mkdir(parents=True, exist_ok=True)
             try:
                 ag_text = ag_dst.read_text(encoding='utf-8', errors='ignore')
@@ -323,8 +325,8 @@ def deploy_soul_files():
                 ag_text = ''
             if src_text != ag_text:
                 ag_dst.write_text(src_text, encoding='utf-8')
-        # 确保 sessions 目录存在
-        sess_dir = OPENCLAW_HOME / 'agents' / runtime_id / 'sessions'
+        # 確保 sessions 目錄存在
+        sess_dir = home / 'agents' / runtime_id / 'sessions'
         sess_dir.mkdir(parents=True, exist_ok=True)
     if deployed:
         log.info(f'{deployed} SOUL.md files deployed')

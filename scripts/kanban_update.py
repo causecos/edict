@@ -471,10 +471,6 @@ def cmd_done(task_id, output_path='', summary=''):
             log.error(f'任务 {task_id} 不存在')
             return tasks
         old_state = t.get('state')
-        if old_state not in ('Doing', 'Next'):
-            rejected[0] = True
-            reject_reason[0] = f'当前状态 {old_state} 不允许直接上报完成'
-            return tasks
         completed, total = _todo_counts(t)
         if total > 0 and completed < total:
             rejected[0] = True
@@ -482,14 +478,30 @@ def cmd_done(task_id, output_path='', summary=''):
             return tasks
 
         from_org = t.get('org', '执行部门')
-        t['state'] = 'Review'
-        t['org'] = STATE_ORG_MAP.get('Review', t.get('org', ''))
-        t['output'] = output_path
-        t['now'] = summary or '执行已完成，提交尚书省汇总审查'
-        t.setdefault('flow_log', []).append({
-            "at": now_iso(), "from": from_org,
-            "to": "尚书省", "remark": f"✅ 执行完成，提交审查：{summary or '待尚书省汇总'}"
-        })
+        # 新流程：执行态回报进入 Review
+        if old_state in ('Doing', 'Next'):
+            t['state'] = 'Review'
+            t['org'] = STATE_ORG_MAP.get('Review', t.get('org', ''))
+            t['output'] = output_path
+            t['now'] = summary or '执行已完成，提交尚书省汇总审查'
+            t.setdefault('flow_log', []).append({
+                "at": now_iso(), "from": from_org,
+                "to": "尚书省", "remark": f"✅ 执行完成，提交审查：{summary or '待尚书省汇总'}"
+            })
+        # 兼容旧流程：中书/门下等状态可直接 Done
+        elif old_state in ('Zhongshu', 'Menxia', 'Assigned', 'Taizi', 'Inbox', 'Pending', 'PendingConfirm', 'Review'):
+            t['state'] = 'Done'
+            t['org'] = STATE_ORG_MAP.get('Done', t.get('org', ''))
+            t['output'] = output_path
+            t['now'] = summary or '任务已完成'
+            t.setdefault('flow_log', []).append({
+                "at": now_iso(), "from": from_org,
+                "to": "完成", "remark": f"✅ 任务完成：{summary or '完成'}"
+            })
+        else:
+            rejected[0] = True
+            reject_reason[0] = f'当前状态 {old_state} 不允许直接上报完成'
+            return tasks
         # 同步设置 outputMeta，避免依赖 refresh_live_data.py 异步补充
         if output_path:
             p = pathlib.Path(output_path)
@@ -510,7 +522,7 @@ def cmd_done(task_id, output_path='', summary=''):
     _append_audit(task_id, _infer_agent_id_from_runtime(), 'done', None, 'Review', summary or '')
     task = _reload_task(task_id)
     if task:
-        dispatch_for_state(task_id, task, 'Review', 'done')
+        dispatch_for_state(task_id, task, task.get('state', 'Review'), 'done')
 
 
 def cmd_block(task_id, reason):
@@ -963,6 +975,32 @@ def cmd_delegate_result(sub_task_id, result_json):
     _trigger_refresh()
     log.info(f'✅ 委派结果 {sub_task_id} → 父任务 {parent_id}')
     _append_audit(parent_id, to_agent, 'delegate_result', sub_task_id, None, result_json[:100])
+
+
+
+# ── 向后兼容函数（供 dashboard/server.py 与旧测试调用）──
+def create_task_from_intent(task_id, title, state='Zhongshu', org='中书省', official='中书令', remark=None, source=None):
+    return cmd_create(task_id, title, state, org, official, remark=remark, source=source)
+
+
+def set_task_state(task_id, new_state, note=''):
+    return cmd_state(task_id, new_state, note)
+
+
+def record_task_flow(task_id, from_dept, to_dept, remark):
+    return cmd_flow(task_id, from_dept, to_dept, remark)
+
+
+def report_task_progress(task_id, now_text, todos=''):
+    return cmd_progress(task_id, now_text, todos)
+
+
+def complete_task(task_id, output='', summary=''):
+    return cmd_done(task_id, output, summary)
+
+
+def block_task(task_id, reason):
+    return cmd_block(task_id, reason)
 
 _CMD_MIN_ARGS = {
     'create': 6, 'state': 3, 'flow': 5, 'done': 2, 'block': 3, 'confirm': 3,

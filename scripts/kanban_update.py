@@ -1026,6 +1026,34 @@ def _todo_brief(task):
     return f'{done}/{total} 完成'
 
 
+def _content_brief(task):
+    """盡量回傳可讀內容，避免顯示「無需求描述」。"""
+    cands = []
+    for key in ('description', 'ac', 'output', 'remark', 'now'):
+        val = (task.get(key) or '').strip()
+        if val:
+            cands.append(val)
+
+    flow_log = task.get('flow_log') or []
+    if flow_log:
+        last = flow_log[-1]
+        flow_reason = (last.get('reason') or last.get('remark') or '').strip()
+        if flow_reason:
+            cands.append(flow_reason)
+
+    progress_log = task.get('progress_log') or []
+    if progress_log:
+        last_p = progress_log[-1]
+        ptxt = (last_p.get('text') or '').strip()
+        if ptxt:
+            cands.append(ptxt)
+
+    for c in cands:
+        if c and c not in ('無', '-'):
+            return _short_text(c, 100)
+    return '（目前尚未填寫需求內容）'
+
+
 def cmd_list(state='', active_only=False, show_id=False, limit=0, brief=False, full=False, include_session=False):
     """列出任務清單（預設顯示可讀內容，避免只見技術 ID）。"""
     tasks = atomic_json_read(TASKS_FILE) or []
@@ -1071,7 +1099,7 @@ def cmd_list(state='', active_only=False, show_id=False, limit=0, brief=False, f
         print(f"   進度：{now_txt}")
 
         if full:
-            desc = _short_text(t.get('description') or t.get('ac') or '（無需求描述）', 100)
+            desc = _content_brief(t)
             print(f"   內容：{desc}")
             print(f"   子任務：{_todo_brief(t)}")
             flow_log = t.get('flow_log') or []

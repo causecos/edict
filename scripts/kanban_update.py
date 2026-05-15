@@ -214,6 +214,9 @@ def find_task(tasks, task_id):
 
 # 旨意标题最低要求
 _MIN_TITLE_LEN = 6
+# 正式任務 ID：JJC-YYYYMMDD-NNN（可選：測試 ID）
+_TASK_ID_RE = re.compile(r'^JJC-\d{8}-\d{3}$', re.I)
+_TASK_ID_TEST_RE = re.compile(r'^(?:JJC-TEST-[A-Z0-9-]+|TEST-[A-Z0-9-]+)$', re.I)
 _JUNK_TITLES = {
     '?', '？', '好', '好的', '是', '否', '不', '不是', '对', '了解', '收到',
     '嗯', '哦', '知道了', '开启了么', '可以', '不行', '行', 'ok', 'yes', 'no',
@@ -289,6 +292,19 @@ def _infer_agent_id_from_runtime(task=None):
     return ''
 
 
+def _allow_test_task_ids():
+    return bool(os.environ.get('EDICT_ALLOW_TEST_TASK_ID') == '1' or os.environ.get('PYTEST_CURRENT_TEST'))
+
+
+def _is_valid_task_id(task_id):
+    tid = (task_id or '').strip()
+    if _TASK_ID_RE.fullmatch(tid):
+        return True, ''
+    if _TASK_ID_TEST_RE.fullmatch(tid) and _allow_test_task_ids():
+        return True, ''
+    return False, 'task_id 必須為 JJC-YYYYMMDD-NNN'
+
+
 def _is_valid_task_title(title):
     """校验标题是否足够作为一个旨意任务。"""
     t = (title or '').strip()
@@ -310,6 +326,12 @@ def _is_valid_task_title(title):
 
 def cmd_create(task_id, title, state, org, official, remark=None, source=None):
     """新建任务（收旨时立即调用）"""
+    # 任務 ID 校驗
+    valid_id, reason_id = _is_valid_task_id(task_id)
+    if not valid_id:
+        log.warning(f'⚠️ 拒绝创建 {task_id}：{reason_id}')
+        print(f'[看板] 拒绝创建：{reason_id}', flush=True)
+        return
     # 清洗标题（剥离元数据）
     title = _sanitize_title(title)
     # 旨意标题校验
@@ -1077,8 +1099,20 @@ def cmd_list(state='', active_only=False, show_id=False, limit=0, brief=False, f
         title = (t.get('title') or '')
         return tid.startswith('OC-') or 'runtime sessions' in desc or title.endswith('會話')
 
+    def _is_standard_id(t):
+        tid = (t.get('id') or '').strip()
+        if _TASK_ID_RE.fullmatch(tid):
+            return True
+        if _TASK_ID_TEST_RE.fullmatch(tid) and _allow_test_task_ids():
+            return True
+        return False
+
     if not include_session:
         tasks = [t for t in tasks if not _is_session_mirror(t)]
+
+    nonstandard = [t for t in tasks if not _is_standard_id(t)]
+    tasks = [t for t in tasks if _is_standard_id(t)]
+
     if state:
         tasks = [t for t in tasks if (t.get('state') or '').lower() == state.lower()]
     if active_only:
@@ -1092,10 +1126,19 @@ def cmd_list(state='', active_only=False, show_id=False, limit=0, brief=False, f
         tasks = tasks[:limit]
 
     if not tasks:
-        print('目前沒有符合條件的任務')
+        if nonstandard:
+            print(f'目前沒有符合條件的任務（已過濾 {len(nonstandard)} 筆非規範ID）')
+            print('非規範ID示例：')
+            for i, t in enumerate(nonstandard[:5], 1):
+                print(f"  {i}. {(t.get('id') or '-') }｜{(t.get('state') or '-') }｜{_short_text(t.get('title') or '（無標題）', 40)}")
+        else:
+            print('目前沒有符合條件的任務')
         return
 
-    print(f'任務清單（共 {len(tasks)} 筆）')
+    if nonstandard:
+        print(f'任務清單（共 {len(tasks)} 筆，已過濾 {len(nonstandard)} 筆非規範ID）')
+    else:
+        print(f'任務清單（共 {len(tasks)} 筆）')
     for i, t in enumerate(tasks, 1):
         title = (t.get('title') or '（無標題）').strip()
         state_txt = t.get('state') or '-'

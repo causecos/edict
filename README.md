@@ -40,6 +40,7 @@
 - **任務資料源改為 DB-first**：Dashboard `live-status` 支援 `db/json/auto` 模式切換，預設建議 `db`。
 - **模式切換 CLI**：新增 `scripts/task_source_mode.py`，可查詢/切換資料源模式與後端健康狀態。
 - **流程一致性強化**：主路徑以 **Event Bus** 為準，CLI 僅作故障排查與補救。
+- **模型配置升級**：每個 Agent 可獨立切換 LLM 與 THINK，模型下拉優先顯示 runtime 可用項目。
 - **穩定性修復**：已完成相容層與同步路徑修復，當前測試結果為 **49 passed**。
 
 ```bash
@@ -187,8 +188,8 @@ CrewAI 和 AutoGen 的 Agent 协作模式是 **"做完就交"**——没有人�
 <tr><td>
 
 **⚙️ 模型配置 · Models**
-- 每个 Agent 独立切换 LLM
-- 应用后自动重启 Gateway（~5秒生效）
+- 每个 Agent 独立切换 LLM 與 THINK
+- 应用后自动重启 Gateway（~5秒生效，模型与 THINK 同步）
 
 </td><td>
 
@@ -485,12 +486,14 @@ edict/
 ├── scripts/
 │   ├── run_loop.sh             # 数据刷新循环（每 15 秒）
 │   ├── kanban_update.py        # 看板 CLI（含旨意数据清洗 + 标题校验 + 状态机）
+│   ├── tg_cli.py               # Telegram-friendly task CLI
 │   ├── skill_manager.py        # Skill 管理工具（远程/本地 Skills 添加、更新、移除）
 │   ├── agentrec_advisor.py     # Agent 模型推荐（功过簿 + 成本优化）
 │   ├── linucb_router.py        # LinUCB 智能路由
 │   ├── refresh_watcher.py      # 数据变更监听
 │   ├── sync_from_openclaw_runtime.py
 │   ├── sync_agent_config.py
+│   ├── apply_thinking_changes.py
 │   ├── sync_officials_stats.py
 │   ├── fetch_morning_news.py
 │   ├── refresh_live_data.py

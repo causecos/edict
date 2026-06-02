@@ -107,9 +107,14 @@ create_workspaces() {
     log "Workspace 已创建: $ws"
   done
 
-  # 通用 AGENTS.md（工作协议）
+  # 通用 AGENTS.md（工作协议）— 僅在不存在時寫入
   for agent in "${AGENTS[@]}"; do
-    cat > "$OC_HOME/workspace-$agent/AGENTS.md" << 'AGENTS_EOF'
+    local agent_md="$OC_HOME/workspace-$agent/AGENTS.md"
+    if [ -f "$agent_md" ]; then
+      log "AGENTS.md for $agent already exists, skip"
+      continue
+    fi
+    cat > "$agent_md" << 'AGENTS_EOF'
 # AGENTS.md · 工作协议
 
 1. 接到任务先回复"已接旨"。
@@ -198,7 +203,10 @@ init_data() {
       echo '{}' > "$REPO_DIR/data/$f"
     fi
   done
-  echo '[]' > "$REPO_DIR/data/pending_model_changes.json"
+  # 初始化 pending_model_changes（僅在不存在時寫入）
+  if [ ! -f "$REPO_DIR/data/pending_model_changes.json" ]; then
+    echo '[]' > "$REPO_DIR/data/pending_model_changes.json"
+  fi
 
   # 初始任务文件
   if [ ! -f "$REPO_DIR/data/tasks_source.json" ]; then

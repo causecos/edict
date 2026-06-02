@@ -22,8 +22,8 @@ router = APIRouter()
 # ── Schemas ──
 
 class TaskCreate(BaseModel):
-    title: str
-    description: str = ""
+    title: str = Field(..., min_length=1, max_length=500, description="任務標題")
+    description: str = Field(default="", max_length=5000, description="任務描述")
     priority: str = "中"
     assignee_org: str | None = None
     creator: str = "emperor"

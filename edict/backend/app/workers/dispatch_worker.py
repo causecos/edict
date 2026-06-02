@@ -533,8 +533,9 @@ class DispatchWorker:
                 elif "command not found" in stderr:
                     raise DispatchError("openclaw binary missing", retryable=False)
                 elif result["returncode"] in (1, 2):
+                    # rc=1 通常是 CLI 參數/語法錯誤，rc=2 通常是誤用，不應重試
                     raise DispatchError(
-                        f"Agent failed: rc={result['returncode']}", retryable=True
+                        f"Agent failed: rc={result['returncode']}", retryable=False
                     )
                 else:
                     raise DispatchError(

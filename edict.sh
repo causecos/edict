@@ -35,16 +35,16 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC
 # ── 工具函数 ──
 
 _ensure_dirs() {
-  mkdir -p "$PIDDIR" "$LOGDIR" "$REPO_DIR/data"
-  # 初始化必需的数据文件
+  mkdir -p "$PIDDIR" "$LOGDIR" "$REPO_DIR/data" || true
+  # 初始化必需的数据文件（仅在不存在时创建）
   for f in live_status.json agent_config.json model_change_log.json sync_status.json; do
-    [ ! -f "$REPO_DIR/data/$f" ] && echo '{}' > "$REPO_DIR/data/$f"
+    [ -f "$REPO_DIR/data/$f" ] || echo '{}' > "$REPO_DIR/data/$f"
   done
-  [ ! -f "$REPO_DIR/data/pending_model_changes.json" ] && echo '[]' > "$REPO_DIR/data/pending_model_changes.json"
-  [ ! -f "$REPO_DIR/data/tasks_source.json" ] && echo '[]' > "$REPO_DIR/data/tasks_source.json"
-  [ ! -f "$REPO_DIR/data/tasks.json" ] && echo '[]' > "$REPO_DIR/data/tasks.json"
-  [ ! -f "$REPO_DIR/data/officials.json" ] && echo '[]' > "$REPO_DIR/data/officials.json"
-  [ ! -f "$REPO_DIR/data/officials_stats.json" ] && echo '{}' > "$REPO_DIR/data/officials_stats.json"
+  [ -f "$REPO_DIR/data/pending_model_changes.json" ] || echo '[]' > "$REPO_DIR/data/pending_model_changes.json"
+  [ -f "$REPO_DIR/data/tasks_source.json" ] || echo '[]' > "$REPO_DIR/data/tasks_source.json"
+  [ -f "$REPO_DIR/data/tasks.json" ] || echo '[]' > "$REPO_DIR/data/tasks.json"
+  [ -f "$REPO_DIR/data/officials.json" ] || echo '[]' > "$REPO_DIR/data/officials.json"
+  [ -f "$REPO_DIR/data/officials_stats.json" ] || echo '{}' > "$REPO_DIR/data/officials_stats.json"
 }
 
 _is_running() {
@@ -94,10 +94,8 @@ do_start_all() {
 
   # 启动 Workers
   for worker in orchestrator dispatch outbox_relay; do
-    local pidvar="${worker^^}_PIDFILE"
-    local pidfile="${!pidvar}"
-    local logvar="${worker^^}_LOG"
-    local logfile="${!logvar}"
+    local pidfile="${PIDDIR}/${worker}.pid"
+    local logfile="${LOGDIR}/${worker}.log"
     case "$worker" in
       orchestrator) local wcmd="app.workers.orchestrator_worker" ;;
       dispatch)     local wcmd="app.workers.dispatch_worker" ;;
@@ -130,8 +128,7 @@ do_stop_all() {
   do_stop  # 停 Dashboard + Loop
 
   for svc in outbox_relay dispatch orchestrator backend; do
-    local pidvar="${svc^^}_PIDFILE"
-    local pidfile="${!pidvar}"
+    local pidfile="${PIDDIR}/${svc}.pid"
     if _is_running "$pidfile"; then
       local pid=$(_get_pid "$pidfile")
       kill "$pid" 2>/dev/null

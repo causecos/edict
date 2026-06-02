@@ -12,6 +12,8 @@ router = APIRouter()
 # Agent 元信息（對應 agents/ 目錄下的 SOUL.md）
 AGENT_META = {
     "zaochao": {"name": "早朝（朝會主持）", "role": "朝會召集與議程管理", "icon": "🏛️"},
+    "taizi": {"name": "太子", "role": "任務分揀與派發", "icon": "👑"},
+    "libu_hr": {"name": "吏部（人事）", "role": "人事與組織管理", "icon": "👤"},
     "shangshu": {"name": "尚書令", "role": "總協調與任務監督", "icon": "📜"},
     "zhongshu": {"name": "中書省", "role": "起草詔令與方案規劃", "icon": "✍️"},
     "menxia": {"name": "門下省", "role": "審核與封駁", "icon": "🔍"},

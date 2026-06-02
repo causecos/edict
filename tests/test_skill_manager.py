@@ -28,10 +28,11 @@ class SkillManagerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             skill_manager = _load_skill_manager(Path(tmp) / ".openclaw")
 
-        self.assertIn("mmx_cli", skill_manager.OFFICIAL_SKILLS_HUB)
+        self.assertIn("code_review", skill_manager.OFFICIAL_SKILLS_HUB)
+        # 所有 URL 必須為有效的 SKILL.md 連結
         self.assertTrue(
             all(
-                "openclaw-ai/skills-hub" not in url
+                url.startswith("https://") and url.endswith("/SKILL.md")
                 for url in skill_manager.OFFICIAL_SKILLS_HUB.values()
             )
         )
@@ -51,10 +52,6 @@ class SkillManagerTests(unittest.TestCase):
             skill_manager.OFFICIAL_SKILLS_HUB["test_framework"],
             "https://example.com/openclaw-skills/test_framework/SKILL.md",
         )
-        self.assertEqual(
-            skill_manager.OFFICIAL_SKILLS_HUB["mmx_cli"],
-            "https://raw.githubusercontent.com/MiniMax-AI/cli/main/skill/SKILL.md",
-        )
 
     def test_import_official_hub_uses_per_skill_recommended_agents(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -69,23 +66,21 @@ class SkillManagerTests(unittest.TestCase):
         with mock.patch.object(skill_manager, "add_remote", fake_add_remote):
             self.assertTrue(skill_manager.import_official_hub([]))
 
-        self.assertEqual(
-            calls,
-            [
-                (
-                    "menxia",
-                    "mmx_cli",
-                    "https://raw.githubusercontent.com/MiniMax-AI/cli/main/skill/SKILL.md",
-                    "默认 skill：mmx_cli",
-                ),
-                (
-                    "shangshu",
-                    "mmx_cli",
-                    "https://raw.githubusercontent.com/MiniMax-AI/cli/main/skill/SKILL.md",
-                    "默认 skill：mmx_cli",
-                ),
-            ],
-        )
+        # import_official_hub([]) with no agents: collects all recommended agents
+        # from SKILL_AGENT_MAPPING (6 unique), then 6 skills × 6 agents = 36 calls
+        self.assertEqual(len(calls), 36)
+
+        # Verify code_review dispatched to all expected agents
+        code_review_agents = {c[0] for c in calls if c[1] == "code_review"}
+        self.assertEqual(code_review_agents, {"bingbu", "xingbu", "menxia", "gongbu", "hubu", "libu"})
+
+        # Verify all 6 skills were dispatched
+        dispatched_skills = {c[1] for c in calls}
+        self.assertEqual(dispatched_skills, {"code_review", "api_design", "security_audit", "data_analysis", "doc_generation", "test_framework"})
+
+        # Verify URL format
+        for call in calls:
+            self.assertTrue(call[2].endswith(f"/{call[1]}/SKILL.md"))
 
 
 if __name__ == "__main__":

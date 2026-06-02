@@ -20,7 +20,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .services.event_bus import get_event_bus
-from .auth import require_api_key
 from .api import tasks, agents, events, admin, websocket
 from .api import legacy
 

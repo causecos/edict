@@ -8,8 +8,8 @@ import logging
 import secrets
 from functools import lru_cache
 
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import HTTPException, Request, status
+from fastapi.security import HTTPBearer
 
 from .config import get_settings
 

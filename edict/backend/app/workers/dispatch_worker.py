@@ -24,7 +24,6 @@ import tempfile
 import time
 import uuid
 from contextlib import suppress
-from datetime import datetime, timezone
 
 from ..config import get_settings
 from ..services.event_bus import (

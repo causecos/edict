@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import uuid
 import logging
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -12,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_db
 from ..auth import require_api_key
 from ..models.task import TaskState
-from ..services.event_bus import EventBus, get_event_bus
+from ..services.event_bus import get_event_bus
 from ..services.task_service import TaskService
 
 log = logging.getLogger("edict.api.tasks")

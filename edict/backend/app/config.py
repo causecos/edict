@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = False
     scheduler_scan_interval_seconds: int = 30
+    heartbeat_interval_sec: int = Field(default=30, description="心跳間隔秒數")
 
     @property
     def database_url(self) -> str:

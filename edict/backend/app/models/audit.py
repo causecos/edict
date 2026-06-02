@@ -4,11 +4,9 @@
 與 flow_log (JSONB 字段) 不同，審計日誌是獨立表，可跨任務檢索。
 """
 
-import uuid
 from datetime import datetime, timezone
-
 from sqlalchemy import BigInteger, Column, DateTime, Index, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB
 
 from ..db import Base
 

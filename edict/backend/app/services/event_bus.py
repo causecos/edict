@@ -20,10 +20,6 @@ log = logging.getLogger("edict.event_bus")
 
 # ── 標準 Topic 常量 ──
 TOPIC_TASK_CREATED = "task.created"
-TOPIC_TASK_PLANNING_REQUEST = "task.planning.request"
-TOPIC_TASK_PLANNING_COMPLETE = "task.planning.complete"
-TOPIC_TASK_REVIEW_REQUEST = "task.review.request"
-TOPIC_TASK_REVIEW_RESULT = "task.review.result"
 TOPIC_TASK_DISPATCH = "task.dispatch"
 TOPIC_TASK_DISPATCH_STARTED = "task.dispatch.started"
 TOPIC_TASK_DISPATCH_FAILED = "task.dispatch.failed"
@@ -31,13 +27,10 @@ TOPIC_TASK_DISPATCH_ALERT = "task.dispatch.alert"
 TOPIC_TASK_AUDIT = "task.audit"
 TOPIC_TASK_STATUS = "task.status"
 TOPIC_TASK_COMPLETED = "task.completed"
-TOPIC_TASK_CLOSED = "task.closed"
-TOPIC_TASK_REPLAN = "task.replan"
 TOPIC_TASK_STALLED = "task.stalled"
 TOPIC_TASK_ESCALATED = "task.escalated"
 
 TOPIC_AGENT_THOUGHTS = "agent.thoughts"
-TOPIC_AGENT_TODO_UPDATE = "agent.todo.update"
 TOPIC_AGENT_HEARTBEAT = "agent.heartbeat"
 
 # 所有 topic 對應的 Redis Stream key 前綴

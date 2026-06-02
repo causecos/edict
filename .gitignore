@@ -18,6 +18,7 @@ data/mission_control_tasks.json
 
 # Environment
 .env
+edict.service.env
 
 # Python
 __pycache__/

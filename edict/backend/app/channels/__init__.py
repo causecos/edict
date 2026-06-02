@@ -27,10 +27,6 @@ def get_channel(channel_type: str) -> Type[NotificationChannel] | None:
     return CHANNELS.get(channel_type)
 
 
-def get_all_channels() -> list[Type[NotificationChannel]]:
-    return list(CHANNELS.values())
-
-
 def get_channel_info() -> list[dict]:
     return [
         {
@@ -54,6 +50,5 @@ __all__ = [
     "QQChannel",
     "CHANNELS",
     "get_channel",
-    "get_all_channels",
     "get_channel_info",
 ]

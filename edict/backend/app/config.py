@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import secrets
+from pathlib import Path
 from functools import lru_cache
 
 from pydantic import Field
@@ -27,7 +28,7 @@ class Settings(BaseSettings):
     database_url_override: str | None = Field(default=None, alias="DATABASE_URL")
 
     # ── Redis ──
-    redis_url: str = "redis://localhost:***"
+    redis_url: str = "redis://localhost:6379/0"
 
     # ── Auth ──
     api_key: str = ""
@@ -64,7 +65,7 @@ class Settings(BaseSettings):
         )
 
     model_config = {
-        "env_file": ".env",
+        "env_file": str(Path(__file__).resolve().parent.parent / ".env"),
         "env_file_encoding": "utf-8",
         "env_prefix": "",
         "alias_generator": None,

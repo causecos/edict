@@ -11,8 +11,8 @@ from sqlalchemy.engine.url import make_url
 
 
 def _generate_secret() -> str:
-    """生成高強度隨機密鑰（64 字元 hex）。"""
-    return secrets.token_hex(32)
+    """生成高強度隨機密鑰（43 字元 base64）。"""
+    return secrets.token_urlsafe(32)
 
 
 class Settings(BaseSettings):

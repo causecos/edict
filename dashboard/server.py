@@ -1342,7 +1342,7 @@ def _resolve_openclaw_bin():
     if configured:
         return configured
     # 優先檢查常見路徑，避免 PATH 缺失導致找不到
-    for bin_dir in ('/home/cosmos/.npm-global/bin', '/usr/local/bin', '/usr/bin'):
+    for bin_dir in (str(pathlib.Path.home() / '.npm-global/bin'), '/usr/local/bin', '/usr/bin'):
         candidate = pathlib.Path(bin_dir) / 'openclaw'
         if candidate.exists():
             return str(candidate)

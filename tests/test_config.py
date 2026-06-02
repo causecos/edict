@@ -25,16 +25,16 @@ from edict.backend.app.config import Settings, get_settings
 class TestSettingsDefaults:
     """Settings 預設值單元測試。"""
 
-    def test_postgres_password_default_is_64_hex_chars(self):
+    def test_postgres_password_default_is_token_urlsafe(self):
         """
         given: 未設置 POSTGRES_PASSWORD 環境變數
         when: 建立 Settings 實例（跳過 .env 檔案載入）
-        then: postgres_password 為 _generate_secret 動態生成的 64 字元 hex 字串
+        then: postgres_password 為 _generate_secret 動態生成的 43 字元 base64url 字串
         """
         settings = Settings(_env_file=None)
         password = settings.postgres_password
-        assert len(password) == 64, f"Expected 64 chars, got {len(password)}"
-        assert re.fullmatch(r"[0-9a-f]{64}", password), f"Not hex: {password[:20]}..."
+        assert len(password) == 43, f"Expected 43 chars, got {len(password)}"
+        assert re.fullmatch(r"[A-Za-z0-9_-]{43}", password), f"Not base64url: {password[:20]}..."
 
     def test_postgres_password_respects_env(self, monkeypatch):
         """

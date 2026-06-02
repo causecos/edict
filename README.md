@@ -26,7 +26,7 @@
   <img src="https://img.shields.io/badge/Dashboard-Real--time-F59E0B?style=flat-square" alt="Dashboard">
   <img src="https://img.shields.io/badge/License-MIT-22C55E?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Frontend-React_18-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React">
-  <img src="https://img.shields.io/badge/Backend-stdlib_only-EC4899?style=flat-square" alt="Zero Backend Dependencies">
+  <img src="https://img.shields.io/badge/Backend-FastAPI-EC4899?style=flat-square" alt="Zero Backend Dependencies">
 </p>
 
 <p align="center">
@@ -41,11 +41,11 @@
 - **模式切換 CLI**：新增 `scripts/task_source_mode.py`，可查詢/切換資料源模式與後端健康狀態。
 - **流程一致性強化**：主路徑以 **Event Bus** 為準，CLI 僅作故障排查與補救。
 - **模型配置升級**：每個 Agent 可獨立切換 LLM 與 THINK，模型下拉優先顯示 runtime 可用項目。
-- **穩定性修復**：已完成相容層與同步路徑修復，當前測試結果為 **49 passed**。
+- **穩定性修復**：已完成相容層與同步路徑修復，當前測試結果為 **225 passed**。
 
 ```bash
 # 查看目前資料源模式
-python3 scripts/task_source_mode.py get
+python3 scripts/task_source_mode.py status
 
 # 切換到 DB 模式
 python3 scripts/task_source_mode.py set db
@@ -462,11 +462,11 @@ edict/
 │   ├── libu_hr/                # 吏部 · 人事管理
 │   └── zaochao/SOUL.md         # 早朝官 · 情报枢纽
 ├── dashboard/
-│   ├── dashboard.html          # 军机处看板（单文件 · 零依赖 · ~2500 行）
+│   ├── dashboard.html          # 军机处看板（单文件 · 零依赖 · ~3400 行）
 │   ├── dist/                   # React 前端构建产物（Docker 镜像内包含，本地可选）
 │   ├── auth.py                 # Dashboard 登录鉴权
 │   ├── court_discuss.py        # 朝堂议政（多官员 LLM 讨论引擎）
-│   └── server.py               # API 服务器（Python 标准库 · 零依赖 · ~2300 行）
+│   └── server.py               # API 服务器（Python 标准库 · 零依赖 · ~3200 行）
 ├── edict/backend/              # 异步后端服务（SQLAlchemy + Redis）
 │   ├── app/models/
 │   │   ├── task.py             # 任务模型 + 状态机
@@ -488,8 +488,6 @@ edict/
 │   ├── kanban_update.py        # 看板 CLI（含旨意数据清洗 + 标题校验 + 状态机）
 │   ├── tg_cli.py               # Telegram-friendly task CLI
 │   ├── skill_manager.py        # Skill 管理工具（远程/本地 Skills 添加、更新、移除）
-│   ├── agentrec_advisor.py     # Agent 模型推荐（功过簿 + 成本优化）
-│   ├── linucb_router.py        # LinUCB 智能路由
 │   ├── refresh_watcher.py      # 数据变更监听
 │   ├── sync_from_openclaw_runtime.py
 │   ├── sync_agent_config.py
@@ -500,7 +498,7 @@ edict/
 │   ├── apply_model_changes.py
 │   └── file_lock.py            # 文件锁（防多 Agent 并发写入）
 ├── tests/
-│   ├── test_e2e_kanban.py      # 端到端测试（17 个断言）
+│   ├── test_e2e_kanban.py      # 端到端测试（21 个断言）
 │   └── test_state_machine_consistency.py  # 状态机一致性测试
 ├── data/                       # 运行时数据（gitignored）
 ├── docs/
@@ -621,7 +619,8 @@ curl http://localhost:7891/api/remote-skills-list
 | 特点 | 说明 |
 |------|------|
 | **React 18 前端** | TypeScript + Vite + Zustand 状态管理，13 个功能组件 |
-| **纯 stdlib 后端** | `server.py` 基于 `http.server`，零依赖，同时提供 API + 静态文件服务 |
+| **纯 stdlib Dashboard** | `server.py` 基于 `http.server`，零依赖，同时提供 API + 静态文件服务 |
+| **FastAPI 后端** | `edict/backend/` 使用 FastAPI + SQLAlchemy + Redis，提供 EventBus、Outbox Relay、并行调度等服务 |
 | **EventBus 事件总线** | Redis Streams 发布/订阅，服务间解耦通信 |
 | **Outbox Relay** | 事务性 Outbox 模式，保障事件可靠投递（至少一次语义） |
 | **状态机审计** | 严格生命周期状态转换 + 完整审计日志（`audit.py`） |
@@ -759,7 +758,7 @@ python3 scripts/skill_manager.py import-official-hub --agents menxia
 - [x] 太子消息分拣（闲聊自动回复 / 旨意建任务）
 - [x] 旨意数据清洗（路径/元数据/前缀自动剥离）
 - [x] 重复任务防护 + 已完成任务保护
-- [x] 端到端测试覆盖（17 个断言）
+- [x] 端到端测试覆盖（21 个断言）
 - [x] React 18 前端重构（TypeScript + Vite + Zustand · 13 组件）
 - [x] Agent 思考过程可视化（实时 thinking / 工具调用 / 返回结果）
 - [x] 前后端一体化部署（server.py 同时提供 API + 静态文件服务）

@@ -18,10 +18,8 @@ import asyncio
 import logging
 import signal
 import uuid
-from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 
-from ..config import get_settings
 from ..db import async_session
 from ..models.task import TaskState, STATE_AGENT_MAP, ORG_AGENT_MAP, TERMINAL_STATES
 from ..services.event_bus import (

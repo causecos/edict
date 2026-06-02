@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh_TW">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -22,6 +22,11 @@
     html.light ::-webkit-scrollbar-thumb{background:#c4c8d4}
     .theme-toggle{background:var(--panel);border:1px solid var(--line);border-radius:8px;cursor:pointer;font-size:16px;padding:4px 10px;color:var(--text);transition:all .15s}
     .theme-toggle:hover{background:var(--panel2)}
+
+    .lang-sel{display:inline-flex;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:2px;font-size:11px}
+    .lang-sel button{background:transparent;border:none;border-radius:6px;padding:2px 6px;cursor:pointer;color:var(--muted);font-weight:500;transition:all .15s}
+    .lang-sel button:hover{color:var(--text);background:var(--panel2)}
+    .lang-sel button.active{background:var(--acc);color:#fff}
 
     .wrap{max-width:1400px;margin:0 auto;padding:16px}
     .wrap,.chip{transition:background-color .3s ease,color .2s ease,border-color .2s ease}
@@ -667,11 +672,11 @@
 <!-- COURT CEREMONY -->
 <div class="ceremony-bg" id="ceremony" style="display:none" onclick="skipCeremony()">
   <div class="crm-glow"></div>
-  <div class="crm-line1" id="crm-l1">早朝開始</div>
-  <div class="crm-line2" id="crm-l2">各部聽旨</div>
+  <div class="crm-line1" id="crm-l1" data-i18n="ceremony.title">早朝開始</div>
+  <div class="crm-line2" id="crm-l2" data-i18n="ceremony.subtitle">各部聽旨</div>
   <div class="crm-line3" id="crm-l3"></div>
   <div class="crm-date" id="crm-date"></div>
-  <div class="crm-skip">點擊任意處跳過</div>
+  <div class="crm-skip" data-i18n="ceremony.skip">點擊任意處跳過</div>
 </div>
 
 <div class="wrap">
@@ -679,45 +684,50 @@
   <!-- HEADER -->
   <div class="hdr">
     <div>
-      <div class="logo">⚔️ 軍機處 · 三省六部總控臺</div>
-      <div class="sub">皇上視角 · 實時旨意追蹤</div>
+      <div class="logo" data-i18n="header.logo">⚔️ 軍機處 · 三省六部總控臺</div>
+      <div class="sub" data-i18n="header.sub">皇上視角 · 實時旨意追蹤</div>
     </div>
     <div class="hdr-r">
       <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="切換主題">🌙</button>
-      <button class="theme-toggle" onclick="openFeedback()" title="祈告上蒼（反饋問題或建議）">🙏 祈告上蒼</button>
-      <span class="chip" id="chip-sync">⟳ 同步中</span>
+      <span class="lang-sel" id="lang-sel">
+        <button onclick="setLang('zh_TW')" data-lang="zh_TW" title="繁體中文">繁</button>
+        <button onclick="setLang('zh_CN')" data-lang="zh_CN" title="简体中文">简</button>
+        <button onclick="setLang('en')" data-lang="en" title="English">EN</button>
+      </span>
+      <button class="theme-toggle" onclick="openFeedback()" title="祈告上蒼（反饋問題或建議）" data-i18n="header.feedback">🙏 祈告上蒼</button>
+      <span class="chip" id="chip-sync" data-i18n="header.sync">⟳ 同步中</span>
       <span class="chip" id="chip-tasks">— 旨意</span>
-      <button class="btn-refresh" onclick="loadAll()">⟳ 立即刷新</button>
+      <button class="btn-refresh" onclick="loadAll()" data-i18n="header.refresh">⟳ 立即刷新</button>
       <span id="cd"></span>
     </div>
   </div>
 
   <!-- TABS -->
   <div class="tabs">
-    <div class="tab active" data-tab="edicts">📜 旨意看板 <span class="tbadge" id="tb-e">0</span></div>
-    <div class="tab" data-tab="monitor">🔭 省部調度 <span class="tbadge" id="tb-m">0</span></div>
-    <div class="tab" data-tab="officials">👥 官員總覽</div>
-    <div class="tab" data-tab="models">⚙️ 模型配置</div>
-    <div class="tab" data-tab="skills">🛠️ 技能配置</div>
-    <div class="tab" data-tab="sessions">💬 小任務 <span class="tbadge" id="tb-s">0</span></div>
-    <div class="tab" data-tab="memorials">📜 奏摺閣 <span class="tbadge" id="tb-mem">0</span></div>
-    <div class="tab" data-tab="templates">📜 旨庫</div>
-    <div class="tab" data-tab="morning">📰 天下要聞</div>
+    <div class="tab active" data-tab="edicts" data-i18n="tab.edicts">📜 旨意看板 <span class="tbadge" id="tb-e">0</span></div>
+    <div class="tab" data-tab="monitor" data-i18n="tab.monitor">🔭 省部調度 <span class="tbadge" id="tb-m">0</span></div>
+    <div class="tab" data-tab="officials" data-i18n="tab.officials">👥 官員總覽</div>
+    <div class="tab" data-tab="models" data-i18n="tab.models">⚙️ 模型配置</div>
+    <div class="tab" data-tab="skills" data-i18n="tab.skills">🛠️ 技能配置</div>
+    <div class="tab" data-tab="sessions" data-i18n="tab.sessions">💬 小任務 <span class="tbadge" id="tb-s">0</span></div>
+    <div class="tab" data-tab="memorials" data-i18n="tab.memorials">📜 奏摺閣 <span class="tbadge" id="tb-mem">0</span></div>
+    <div class="tab" data-tab="templates" data-i18n="tab.templates">📜 旨庫</div>
+    <div class="tab" data-tab="morning" data-i18n="tab.morning">📰 天下要聞</div>
   </div>
 
   <!-- ══ 旨意看板 ══ -->
   <div class="panel active" id="panel-edicts">
     <div class="archive-bar" id="archive-bar">
-      <span class="ab-label">📋 篩選：</span>
-      <button class="ab-btn active" data-filter="active" onclick="setEdictFilter('active')">🔥 進行中</button>
-      <button class="ab-btn" data-filter="archived" onclick="setEdictFilter('archived')">📦 已歸檔</button>
-      <button class="ab-btn" data-filter="all" onclick="setEdictFilter('all')">全部</button>
+      <span class="ab-label" data-i18n="edicts.filterLabel">📋 篩選：</span>
+      <button class="ab-btn active" data-filter="active" onclick="setEdictFilter('active')" data-i18n="edicts.filterActive">🔥 進行中</button>
+      <button class="ab-btn" data-filter="archived" onclick="setEdictFilter('archived')" data-i18n="edicts.filterArchived">📦 已歸檔</button>
+      <button class="ab-btn" data-filter="all" onclick="setEdictFilter('all')" data-i18n="edicts.filterAll">全部</button>
       <span class="ab-count" id="archive-count"></span>
-      <button class="ab-scan" id="btn-global-scan" onclick="runGlobalSchedulerScan()">🧭 太子巡檢</button>
-      <span class="ab-scan-status" id="global-scan-status">未巡檢</span>
-      <button class="ab-scan-detail" id="btn-global-scan-detail" onclick="toggleGlobalScanDetails()" style="display:none">查看巡檢詳情</button>
-      <button class="ab-scan-copy" id="btn-global-scan-copy" onclick="copyGlobalScanReport()" style="display:none">📋 複製巡檢報告</button>
-      <button class="ab-archive-all" id="btn-archive-done" onclick="archiveAllDone()" style="display:none">📦 一鍵歸檔已完成</button>
+      <button class="ab-scan" id="btn-global-scan" onclick="runGlobalSchedulerScan()" data-i18n="edicts.scanBtn">🧭 太子巡檢</button>
+      <span class="ab-scan-status" id="global-scan-status" data-i18n="edicts.scanNotRun">未巡檢</span>
+      <button class="ab-scan-detail" id="btn-global-scan-detail" onclick="toggleGlobalScanDetails()" style="display:none" data-i18n="edicts.scanDetail">查看巡檢詳情</button>
+      <button class="ab-scan-copy" id="btn-global-scan-copy" onclick="copyGlobalScanReport()" style="display:none" data-i18n="edicts.scanCopy">📋 複製巡檢報告</button>
+      <button class="ab-archive-all" id="btn-archive-done" onclick="archiveAllDone()" style="display:none" data-i18n="edicts.archiveAll">📦 一鍵歸檔已完成</button>
     </div>
     <div class="global-scan-detail" id="global-scan-detail"></div>
     <div id="edict-grid" class="edict-grid"></div>
@@ -726,7 +736,7 @@
   <!-- ══ 省部調度 ══ -->
   <div class="panel" id="panel-monitor">
     <div id="agent-status-panel"></div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">各省部當前承接旨意與執行狀態 · 每5秒自動刷新</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px" data-i18n="monitor.subtitle">各省部當前承接旨意與執行狀態 · 每5秒自動刷新</div>
     <div class="duty-grid" id="duty-grid"></div>
   </div>
 
@@ -736,40 +746,40 @@
     <div id="off-kpi" class="off-kpi"></div>
     <div class="off-layout">
       <div id="off-ranklist" class="off-ranklist"></div>
-      <div id="off-detail" class="off-detail"><div class="od-empty">← 點擊左側官員查看詳情</div></div>
+      <div id="off-detail" class="off-detail"><div class="od-empty" data-i18n="officials.selectHint">← 點擊左側官員查看詳情</div></div>
     </div>
   </div>
 
   <!-- ══ 模型配置 ══ -->
   <div class="panel" id="panel-models">
-    <div class="sec-title" style="margin-bottom:14px">各省部 · 模型配置 <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted)">— 更改後自動重啓 Gateway（約5秒）</span></div>
+    <div class="sec-title" style="margin-bottom:14px"><span data-i18n="models.title">各省部 · 模型配置</span> <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted)" data-i18n="models.subtitle">— 更改後自動重啓 Gateway（約5秒）</span></div>
     <div class="model-grid" id="model-grid"></div>
-    <div class="cl-wrap"><div class="cl-title">變更記錄</div><div id="cl-list"></div></div>
+    <div class="cl-wrap"><div class="cl-title" data-i18n="models.changeLog">變更記錄</div><div id="cl-list"></div></div>
   </div>
 
   <!-- ══ 技能配置 ══ -->
   <div class="panel" id="panel-skills">
-    <div class="sec-title" style="margin-bottom:14px">各省部 · Skills 配置 <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted)">— 點擊技能查看詳情，底部可添加新技能</span></div>
+    <div class="sec-title" style="margin-bottom:14px"><span data-i18n="skills.title">各省部 · Skills 配置</span> <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted)" data-i18n="skills.subtitle">— 點擊技能查看詳情，底部可添加新技能</span></div>
     <div class="skills-grid" id="skills-grid"></div>
   </div>
 
   <!-- ══ 小任務/會話監控 ══ -->
   <div class="panel" id="panel-sessions">
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">飛書/Telegram 中的日常對話與小任務 · 非JJC聖旨類任務</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px" data-i18n="sessions.subtitle">飛書/Telegram 中的日常對話與小任務 · 非JJC聖旨類任務</div>
     <div class="sess-filters">
-      <span style="font-size:11px;color:var(--muted)">篩選：</span>
-      <span class="sess-filter active" data-sf="all" onclick="filterSessions('all',this)">全部</span>
-      <span class="sess-filter" data-sf="active" onclick="filterSessions('active',this)">進行中</span>
-      <span class="sess-filter" data-sf="zhongshu" onclick="filterSessions('zhongshu',this)">中書省</span>
-      <span class="sess-filter" data-sf="shangshu" onclick="filterSessions('shangshu',this)">尚書省</span>
-      <span class="sess-filter" data-sf="libu" onclick="filterSessions('libu',this)">禮部</span>
-      <span class="sess-filter" data-sf="hubu" onclick="filterSessions('hubu',this)">戶部</span>
-      <span class="sess-filter" data-sf="bingbu" onclick="filterSessions('bingbu',this)">兵部</span>
-      <span class="sess-filter" data-sf="xingbu" onclick="filterSessions('xingbu',this)">刑部</span>
-      <span class="sess-filter" data-sf="gongbu" onclick="filterSessions('gongbu',this)">工部</span>
-      <span class="sess-filter" data-sf="libu_hr" onclick="filterSessions('libu_hr',this)">吏部</span>
-      <span class="sess-filter" data-sf="menxia" onclick="filterSessions('menxia',this)">門下省</span>
-      <span class="sess-filter" data-sf="zaochao" onclick="filterSessions('zaochao',this)">欽天監</span>
+      <span style="font-size:11px;color:var(--muted)" data-i18n="sessions.filterLabel">篩選：</span>
+      <span class="sess-filter active" data-sf="all" onclick="filterSessions('all',this)" data-i18n="sessions.filterAll">全部</span>
+      <span class="sess-filter" data-sf="active" onclick="filterSessions('active',this)" data-i18n="sessions.filterActive">進行中</span>
+      <span class="sess-filter" data-sf="zhongshu" onclick="filterSessions('zhongshu',this)" data-i18n="dept.zhongshu">中書省</span>
+      <span class="sess-filter" data-sf="shangshu" onclick="filterSessions('shangshu',this)" data-i18n="dept.shangshu">尚書省</span>
+      <span class="sess-filter" data-sf="libu" onclick="filterSessions('libu',this)" data-i18n="dept.libu">禮部</span>
+      <span class="sess-filter" data-sf="hubu" onclick="filterSessions('hubu',this)" data-i18n="dept.hubu">戶部</span>
+      <span class="sess-filter" data-sf="bingbu" onclick="filterSessions('bingbu',this)" data-i18n="dept.bingbu">兵部</span>
+      <span class="sess-filter" data-sf="xingbu" onclick="filterSessions('xingbu',this)" data-i18n="dept.xingbu">刑部</span>
+      <span class="sess-filter" data-sf="gongbu" onclick="filterSessions('gongbu',this)" data-i18n="dept.gongbu">工部</span>
+      <span class="sess-filter" data-sf="libu_hr" onclick="filterSessions('libu_hr',this)" data-i18n="dept.libuHr">吏部</span>
+      <span class="sess-filter" data-sf="menxia" onclick="filterSessions('menxia',this)" data-i18n="dept.menxia">門下省</span>
+      <span class="sess-filter" data-sf="zaochao" onclick="filterSessions('zaochao',this)" data-i18n="dept.zaochao">欽天監</span>
     </div>
     <div id="sess-grid" class="sess-grid"></div>
   </div>
@@ -778,13 +788,13 @@
   <div class="panel" id="panel-memorials">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <div style="flex:1">
-        <div class="sec-title" style="margin-bottom:2px">📜 奏摺閣 · 旨意存檔</div>
-        <div style="font-size:11px;color:var(--muted)">任務完成後自動生成奏摺，記錄從下旨到完成的完整過程</div>
+        <div class="sec-title" style="margin-bottom:2px" data-i18n="memorials.title">📜 奏摺閣 · 旨意存檔</div>
+        <div style="font-size:11px;color:var(--muted)" data-i18n="memorials.subtitle">任務完成後自動生成奏摺，記錄從下旨到完成的完整過程</div>
       </div>
       <select id="mem-filter" onchange="renderMemorials()" style="font-size:11px;padding:4px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--text);outline:none">
-        <option value="all">全部</option>
-        <option value="Done">已完成</option>
-        <option value="Cancelled">已取消</option>
+        <option value="all" data-i18n="memorials.filterAll">全部</option>
+        <option value="Done" data-i18n="memorials.filterDone">已完成</option>
+        <option value="Cancelled" data-i18n="memorials.filterCancelled">已取消</option>
       </select>
     </div>
     <div id="mem-list" class="mem-list"></div>
@@ -794,23 +804,23 @@
   <div class="panel" id="panel-templates">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <div style="flex:1">
-        <div class="sec-title" style="margin-bottom:2px">📜 旨庫 · 聖旨模板</div>
-        <div style="font-size:11px;color:var(--muted)">選擇模板、填寫參數、一鍵下旨 — 降低使用門檻，快速啓動任務</div>
+        <div class="sec-title" style="margin-bottom:2px" data-i18n="templates.title">📜 旨庫 · 聖旨模板</div>
+        <div style="font-size:11px;color:var(--muted)" data-i18n="templates.subtitle">選擇模板、填寫參數、一鍵下旨 — 降低使用門檻，快速啓動任務</div>
       </div>
     </div>
     <div class="tpl-cats" id="tpl-cats"></div>
     <div class="tpl-grid" id="tpl-grid"></div>
     <!-- 自由下旨 -->
     <div style="margin-top:24px;padding-top:18px;border-top:1px solid var(--line)">
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px">✍️ 自由下旨</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">無需模板，直接用自然語言描述你的需求，系統會自動派發給太子處理</div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px" data-i18n="templates.freeEdict">✍️ 自由下旨</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px" data-i18n="templates.freeEdictHint">無需模板，直接用自然語言描述你的需求，系統會自動派發給太子處理</div>
       <textarea id="free-edict-input" style="width:100%;min-height:80px;resize:vertical;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px;color:var(--text);font-family:inherit" placeholder="例如：幫我分析一下最近三個月的銷售數據趨勢，生成圖表和報告…"></textarea>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px">
         <select id="free-edict-priority" style="background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--text)">
-          <option value="normal">普通優先級</option>
-          <option value="high">高優先級</option>
+          <option value="normal" data-i18n="templates.priorityNormal">普通優先級</option>
+          <option value="high" data-i18n="templates.priorityHigh">高優先級</option>
         </select>
-        <button class="tpl-go" style="padding:8px 20px;font-size:13px" onclick="submitFreeEdict()">📜 下旨</button>
+        <button class="tpl-go" style="padding:8px 20px;font-size:13px" onclick="submitFreeEdict()" data-i18n="templates.submit">📜 下旨</button>
       </div>
     </div>
   </div>
@@ -902,8 +912,54 @@
 <div id="toaster"></div>
 
 <script>
+/* ══ i18n 多語言 ══ */
+let I18N = {}, currentLang = 'zh_TW';
+
+function getCookie(n){let m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)');return m?decodeURIComponent(m[2]):'';}
+
+function setCookie(n,v,d=365){let e=new Date();e.setTime(e.getTime()+d*864e5);document.cookie=n+'='+encodeURIComponent(v)+';expires='+e.toUTCString()+';path=/;SameSite=Lax';}
+
+function __(key,params){let e=I18N[key],t=e?e[currentLang]||e['zh_TW']||key:key;if(params)for(let k in params)t=t.split('{'+k+'}').join(params[k]);return t;}
+
+async function loadI18N(){try{let r=await fetch(API.replace('/api','')+'/api/i18n');I18N=await r.json();}catch(e){console.warn('i18n load failed',e)}}
+
+function applyI18N(){
+  // Update all [data-i18n] elements
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    let k=el.getAttribute('data-i18n');
+    if(!k)return;
+    let t=__(k);
+    if(el.tagName==='INPUT')el.placeholder=t;
+    else if(el.childElementCount===0)el.textContent=t;
+    else{
+      // Element has children — update only the leading text node
+      for(let n of el.childNodes){
+        if(n.nodeType===Node.TEXT_NODE){n.textContent=t;break;}
+      }
+    }
+  });
+  // Update language selector active state
+  document.querySelectorAll('#lang-sel button').forEach(b=>{
+    b.classList.toggle('active',b.getAttribute('data-lang')===currentLang);
+  });
+  // Re-render dynamic content
+  if(typeof loadAll==='function')loadAll();
+}
+
+function setLang(lang){
+  currentLang=lang;setCookie('lang',lang);
+  applyI18N();document.documentElement.lang={'zh_TW':'zh_TW','zh_CN':'zh_CN','en':'en'}[lang]||'zh_TW';
+}
 /* ══ CONFIG ══ */
 const API = (location.origin === 'file://' ? 'http://127.0.0.1:7891' : location.origin) + '/api';
+
+// Init: load i18n + restore lang cookie
+(async function(){
+  let saved=getCookie('lang');
+  if(['zh_TW','zh_CN','en'].includes(saved))currentLang=saved;
+  await loadI18N();
+  applyI18N();
+})();
 let liveStatus=null, agentConfig=null, activeTab='edicts', countdown=5;
 let globalScanActions = [], globalScanDetailOpen = false;
 let globalScanCheckedAt = '', globalScanCount = 0;
@@ -939,12 +995,12 @@ function restoreGlobalScanState(){
   if(st){
     const at = globalScanCheckedAt.replace('T',' ').substring(11,19);
     const count = globalScanCount;
-    st.textContent = count || at ? `最近巡檢: ${count} 個動作${at ? ' · ' + at : ''}` : '未巡檢';
+    st.textContent = count || at ? __('edicts.scanRecent',{n:count}) + (at ? ' · ' + at : '') : __('edicts.scanNotRun');
   }
   if(detailBtn){
     detailBtn.style.display = globalScanActions.length ? 'inline-block' : 'none';
     detailBtn.classList.toggle('active', globalScanDetailOpen);
-    detailBtn.textContent = globalScanDetailOpen ? '收起巡檢詳情' : '查看巡檢詳情';
+    detailBtn.textContent = globalScanDetailOpen ? __('edicts.scanDetailHide') : __('edicts.scanDetail');
   }
   if(copyBtn){
     copyBtn.style.display = globalScanActions.length ? 'inline-block' : 'none';
@@ -974,13 +1030,13 @@ const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g
 async function fetchJ(u){const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw Error(r.status);return r.json()}
 async function postJ(u,d){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});return r.json()}
 function toast(msg,type='ok',ms=3000){const el=document.createElement('div');el.className=`toast ${type}`;el.textContent=msg;document.getElementById('toaster').appendChild(el);setTimeout(()=>el.remove(),ms)}
-const STATE_LABEL={Inbox:'收件',Pending:'待處理',Taizi:'太子分揀',Zhongshu:'中書起草',Menxia:'門下審議',Assigned:'已派發',Doing:'執行中',Review:'待審查',Done:'已完成',Blocked:'阻塞',Cancelled:'已取消',Next:'待執行'};
+const STATE_KEY={Inbox:'state.inbox',Pending:'state.pending',Taizi:'state.taizi',Zhongshu:'state.zhongshu',Menxia:'state.menxia',Assigned:'state.assigned',Doing:'state.doing',Review:'state.review',Done:'state.done',Blocked:'state.blocked',Cancelled:'state.cancelled',Next:'state.next'};
 // 根據輪次動態生成狀態標籤
 function stateLabel(t){
   const r = t.review_round||0;
-  if(t.state==='Menxia' && r>1) return `門下審議（第${r}輪）`;
-  if(t.state==='Zhongshu' && r>0) return `中書修訂（第${r}輪）`;
-  return STATE_LABEL[t.state]||t.state;
+  if(t.state==='Menxia' && r>1) return __('state.menxiaReview',{n:r});
+  if(t.state==='Zhongshu' && r>0) return __('state.zhongshuRevise',{n:r});
+  return __(STATE_KEY[t.state])||t.state;
 }
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1058,15 +1114,15 @@ function renderEdicts(tasks){
   });
   // Tab badge = active count only
   animateCounter(document.getElementById('tb-e'), activeEdicts.length);
-  document.getElementById('chip-tasks').textContent = activeEdicts.length + ' 道旨意';
+  document.getElementById('chip-tasks').textContent = activeEdicts.length + ' ' + __('header.tasksFormat');
   // Archive stats
-  document.getElementById('archive-count').textContent = `活躍 ${activeEdicts.length} · 歸檔 ${archivedEdicts.length} · 共 ${allEdicts.length}`;
+  document.getElementById('archive-count').textContent = __('edicts.archiveCount',{n:activeEdicts.length,m:archivedEdicts.length,total:allEdicts.length});
   // Show "一鍵歸檔" button if there are un-archived Done/Cancelled tasks
   const unArchivedDone = allEdicts.filter(t=>!t.archived && ['Done','Cancelled'].includes(t.state));
   document.getElementById('btn-archive-done').style.display = unArchivedDone.length ? '' : 'none';
   const el = document.getElementById('edict-grid');
   if(!edicts.length){
-    el.innerHTML='<div class="empty" style="grid-column:1/-1">暫無旨意<br><small style="font-size:11px;margin-top:6px;display:block;color:var(--muted)">通過飛書向太子發送任務，太子分揀後轉中書省處理</small></div>';
+    el.innerHTML=`<div class="empty" style="grid-column:1/-1">${__('edicts.empty')}<br><small style="font-size:11px;margin-top:6px;display:block;color:var(--muted)">${__('edicts.emptyHint')}</small></div>`;
     return;
   }
   el.innerHTML = edicts.map(t => {
@@ -1198,12 +1254,12 @@ async function wakeAllAgents(){
   const toWake = (_agentsStatusData.agents||[]).filter(a=>
     a.id!=='main' && a.status!=='running' && a.status!=='unconfigured'
   );
-  if(!toWake.length){ toast('所有 Agent 均已在線','ok'); return; }
-  toast(`正在喚醒 ${toWake.length} 個 Agent...`,'ok',5000);
+  if(!toWake.length){ toast(__('agent.wakeAllOnline'),'ok'); return; }
+  toast(__('agent.wakeAllWaking',{n:toWake.length}),'ok',5000);
   for(const a of toWake){
     try{ await postJ(API+'/agent-wake', {agentId: a.id}); }catch(e){}
   }
-  toast(`${toWake.length} 個喚醒指令已發出，30秒後刷新狀態`,'ok',5000);
+  toast(__('agent.wakeAllDone',{n:toWake.length}),'ok',5000);
   setTimeout(()=>loadAgentsStatus(), 30000);
 }
 
@@ -1246,7 +1302,7 @@ function renderMonitor(tasks){
     if(isActive) activeCount++;
 
     const dotCls = isBlocked?'blocked':isActive?'busy':hb.status==='active'?'active':'idle';
-    const statusText = isBlocked?'⚠️ 阻塞':isActive?'⚙️ 執行中':hb.status==='active'?'🟢 活躍':'⚪ 候命';
+    const statusText = isBlocked?__('monitor.statusBlocked'):isActive?__('monitor.statusExecuting'):hb.status==='active'?__('monitor.statusRunning'):__('monitor.statusIdle');
     const cardCls = isBlocked?'blocked-card':isActive?'active-card':'';
 
     return `<div class="duty-card ${cardCls}">
@@ -1284,7 +1340,7 @@ function renderMonitor(tasks){
     </div>`;
   });
 
-  animateCounter(document.getElementById('tb-m'), activeCount, v=>v + '活躍');
+  animateCounter(document.getElementById('tb-m'), activeCount, v=>v + __('monitor.activeCount'));
   document.getElementById('duty-grid').innerHTML = cards.join('');
 }
 
@@ -1564,7 +1620,7 @@ async function schedulerAction(taskId, action){
   try{
     if(action==='scan'){
       const r = await postJ(API+'/scheduler-scan', {thresholdSec: 180});
-      if(r.ok){ toast(`🔍 掃描完成：${r.count||0} 個動作`,'ok'); }
+      if(r.ok){ toast(__('scan.done',{n:r.count||0}),'ok'); }
       else{ toast(r.error||'掃描失敗','err'); }
       fetchSchedulerState(taskId);
       return;
@@ -2015,13 +2071,13 @@ async function loadLive(){
     const tasks=liveStatus.tasks||[];
     const sync=liveStatus.syncStatus||{};
     const cs=document.getElementById('chip-sync');
-    cs.textContent=sync.ok?'✅ 同步正常':'⚠️ 同步異常';
+    cs.textContent=sync.ok?__('header.syncOk'):__('header.syncWarn');
     cs.className='chip '+(sync.ok?'ok':'warn');
     renderEdicts(tasks);
     renderMonitor(tasks);
     renderSessions(tasks);
   }catch(e){
-    document.getElementById('chip-sync').textContent='❌ 服務器未啓動';
+    document.getElementById('chip-sync').textContent=__('header.syncErr');
     document.getElementById('chip-sync').className='chip err';
   }
 }
@@ -2658,8 +2714,8 @@ function selectOfficial(id, el){
 /* ══ TASK ACTIONS ══ */
 let _confirmCb = null;
 function confirmAction(taskId, action){
-  const titles = {stop:'⏸ 叫停任務', cancel:'🚫 取消任務'};
-  const msgs = {stop:`確定要叫停 <b>${esc(taskId)}</b> 嗎？任務將暫停，可稍後恢復。`, cancel:`確定要取消 <b>${esc(taskId)}</b> 嗎？任務將標記爲已取消。`};
+  const titles = {stop:__('confirm.titleStop'), cancel:__('confirm.titleCancel')};
+  const msgs = {stop:__('confirm.msgStop',{id:taskId}), cancel:__('confirm.msgCancel',{id:taskId})};
   document.getElementById('confirm-title').innerHTML = titles[action]||action;
   document.getElementById('confirm-msg').innerHTML = msgs[action]||'';
   document.getElementById('confirm-reason').value = '';
@@ -2689,8 +2745,8 @@ async function reviewAction(taskId, action){
   if(comment === null) return; // cancelled
   try{
     const r = await postJ(API+'/review-action', {taskId, action, comment: comment||''});
-    if(r.ok){ toast(`✅ ${taskId} 已${labels[action]}`,'ok'); loadAll(); document.getElementById('modal-bg').classList.remove('open'); }
-    else toast(r.error||'操作失敗','err');
+    if(r.ok){ toast(__('review.success',{id:taskId,action:labels[action]}),'ok'); loadAll(); document.getElementById('modal-bg').classList.remove('open'); }
+    else toast(r.error||__('common.fail'),'err');
   }catch(e){ toast('服務器連接失敗','err'); }
 }
 
@@ -2711,23 +2767,23 @@ async function advanceState(taskId, curState){
 async function archiveTask(taskId){
   try{
     const r = await postJ(API+'/archive-task', {taskId, archived: true});
-    if(r.ok){ toast(`📦 ${taskId} 已歸檔`,'ok'); loadAll(); }
-    else toast(r.error||'歸檔失敗','err');
+    if(r.ok){ toast(__('archive.toastArchived',{id:taskId}),'ok'); loadAll(); }
+    else toast(r.error||__('archive.fail'),'err');
   }catch(e){ toast('服務器連接失敗','err'); }
 }
 async function unarchiveTask(taskId){
   try{
     const r = await postJ(API+'/archive-task', {taskId, archived: false});
-    if(r.ok){ toast(`📤 ${taskId} 已取消歸檔`,'ok'); loadAll(); }
-    else toast(r.error||'取消歸檔失敗','err');
+    if(r.ok){ toast(__('archive.toastUnarchived',{id:taskId}),'ok'); loadAll(); }
+    else toast(r.error||__('archive.unarchiveFail'),'err');
   }catch(e){ toast('服務器連接失敗','err'); }
 }
 async function archiveAllDone(){
-  if(!confirm('將所有已完成/已取消的旨意移入歸檔？')) return;
+  if(!confirm(__('archive.confirmBatch'))) return;
   try{
     const r = await postJ(API+'/archive-task', {archiveAllDone: true});
-    if(r.ok){ toast(`📦 ${r.count||0} 道旨意已歸檔`,'ok'); loadAll(); }
-    else toast(r.error||'批量歸檔失敗','err');
+    if(r.ok){ toast(__('archive.toastBatch',{n:r.count||0}),'ok'); loadAll(); }
+    else toast(r.error||__('archive.batchFail'),'err');
   }catch(e){ toast('服務器連接失敗','err'); }
 }
 
@@ -2764,7 +2820,7 @@ async function runGlobalSchedulerScan(){
       }
       persistGlobalScanState({checkedAt: r.checkedAt || '', count});
       renderGlobalScanDetails();
-      toast(`🧭 太子巡檢完成：${count} 個動作`,'ok');
+      toast(__('scan.done',{n:count}),'ok');
       loadAll();
     }else{
       if(st) st.textContent = '巡檢失敗';

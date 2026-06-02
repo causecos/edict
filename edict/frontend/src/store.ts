@@ -58,6 +58,7 @@ export function stateLabel(t: Task): string {
 }
 
 export function isEdict(t: Task): boolean {
+  // 只允許正式旨意編號進入看板主視圖
   return /^JJC-/i.test(t.id || '');
 }
 

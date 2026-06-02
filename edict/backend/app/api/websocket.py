@@ -137,14 +137,3 @@ async def task_websocket(ws: WebSocket, task_id: str):
         _connections.discard(ws)
         await pubsub.punsubscribe("edict:pubsub:*")
         await pubsub_redis.aclose()
-
-
-async def broadcast(event: dict):
-    """向所有連接的 WebSocket 客戶端廣播事件（服務端內部調用用）。"""
-    dead = set()
-    for ws in _connections:
-        try:
-            await ws.send_json(event)
-        except Exception:
-            dead.add(ws)
-    _connections -= dead

@@ -49,6 +49,8 @@ export const api = {
   // 操作類
   setModel: (agentId: string, model: string) =>
     postJ<ActionResult>(`${API_BASE}/api/set-model`, { agentId, model }),
+  setThinking: (agentId: string, thinking: string) =>
+    postJ<ActionResult>(`${API_BASE}/api/set-thinking`, { agentId, thinking }),
   setDispatchChannel: (channel: string) =>
     postJ<ActionResult>(`${API_BASE}/api/set-dispatch-channel`, { channel }),
   agentWake: (agentId: string) =>
@@ -174,6 +176,7 @@ export interface AgentInfo {
   emoji: string;
   role: string;
   model: string;
+  thinkingDefault?: string;
   skills: SkillInfo[];
 }
 
@@ -192,6 +195,7 @@ export interface KnownModel {
 export interface AgentConfig {
   agents: AgentInfo[];
   knownModels?: KnownModel[];
+  defaultThinking?: string;
   dispatchChannel?: string;
 }
 

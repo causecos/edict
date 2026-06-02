@@ -3,7 +3,7 @@
 同步 openclaw.json 中的 agent 配置 → data/agent_config.json
 支持自動發現 agent workspace 下的 Skills 目錄
 """
-import json, os, pathlib, datetime, logging
+import json, os, pathlib, datetime, logging, subprocess
 from file_lock import atomic_json_write
 from utils import get_openclaw_home
 
@@ -81,42 +81,78 @@ def get_skills(workspace: str):
     return skills
 
 
+def _collect_runtime_models_from_cli():
+    """從 `openclaw models list --json` 收集當前可選模型（available=true）。"""
+    try:
+        res = subprocess.run(
+            ['openclaw', 'models', 'list', '--json'],
+            capture_output=True,
+            text=True,
+            timeout=12,
+        )
+        if res.returncode != 0:
+            return []
+        payload = json.loads((res.stdout or '').strip() or '{}')
+        rows = payload.get('models') or []
+        out = []
+        for row in rows:
+            key = str(row.get('key') or '').strip()
+            if not key:
+                continue
+            if row.get('available') is False:
+                continue
+            provider = key.split('/', 1)[0] if '/' in key else 'OpenClaw'
+            out.append({'id': key, 'label': key, 'provider': provider})
+        return out
+    except Exception:
+        return []
+
+
 def _collect_openclaw_models(cfg):
-    """從 openclaw.json 中收集所有已配置的 model id，與 KNOWN_MODELS 合併去重。
-    解決 #127: 自定義 provider 的 model 不在下拉列表中。
-    """
-    known_ids = {m['id'] for m in KNOWN_MODELS}
-    extra = []
+    """模型下拉來源：優先系統「當前可選」模型；取不到時再回退到配置清單。"""
+    known_ids = set()
+    merged = []
+
+    def add(mid, label=None, provider='OpenClaw'):
+        mid = str(mid or '').strip()
+        if not mid or mid in known_ids:
+            return
+        known_ids.add(mid)
+        merged.append({'id': mid, 'label': label or mid, 'provider': provider})
+
+    runtime_models = _collect_runtime_models_from_cli()
+    for m in runtime_models:
+        add(m.get('id'), m.get('label'), m.get('provider') or 'OpenClaw')
+
+    # 有 runtime 可選模型時，直接以它為準
+    if merged:
+        return merged
+
+    # 回退：既有靜態 + openclaw.json 配置
+    for m in KNOWN_MODELS:
+        add(m.get('id'), m.get('label'), m.get('provider') or 'OpenClaw')
+
     agents_cfg = cfg.get('agents', {})
-    # 收集 defaults.model
     dm = normalize_model(agents_cfg.get('defaults', {}).get('model', {}), '')
-    if dm and dm not in known_ids:
-        extra.append({'id': dm, 'label': dm, 'provider': 'OpenClaw'})
-        known_ids.add(dm)
-    # 收集 defaults.models 中的所有模型（OpenClaw 默認啓用的模型列表）
+    if dm:
+        add(dm, dm, dm.split('/')[0] if '/' in dm else 'OpenClaw')
+
     defaults_models = agents_cfg.get('defaults', {}).get('models', {})
     if isinstance(defaults_models, dict):
         for model_id in defaults_models.keys():
-            if model_id and model_id not in known_ids:
-                provider = 'OpenClaw'
-                if '/' in model_id:
-                    provider = model_id.split('/')[0]
-                extra.append({'id': model_id, 'label': model_id, 'provider': provider})
-                known_ids.add(model_id)
-    # 收集每個 agent 的 model
+            add(model_id, model_id, str(model_id).split('/')[0] if '/' in str(model_id) else 'OpenClaw')
+
     for ag in agents_cfg.get('list', []):
         m = normalize_model(ag.get('model', ''), '')
-        if m and m not in known_ids:
-            extra.append({'id': m, 'label': m, 'provider': 'OpenClaw'})
-            known_ids.add(m)
-    # 收集 providers 中的 model id（如 copilot-proxy、anthropic 等）
+        if m:
+            add(m, m, m.split('/')[0] if '/' in m else 'OpenClaw')
+
     for pname, pcfg in cfg.get('providers', {}).items():
         for mid in (pcfg.get('models') or []):
             mid_str = mid if isinstance(mid, str) else (mid.get('id') or mid.get('name') or '')
-            if mid_str and mid_str not in known_ids:
-                extra.append({'id': mid_str, 'label': mid_str, 'provider': pname})
-                known_ids.add(mid_str)
-    return KNOWN_MODELS + extra
+            add(mid_str, mid_str, pname)
+
+    return merged
 
 
 def main():
@@ -129,6 +165,7 @@ def main():
 
     agents_cfg = cfg.get('agents', {})
     default_model = normalize_model(agents_cfg.get('defaults', {}).get('model', {}), 'unknown')
+    default_thinking = str(agents_cfg.get('defaults', {}).get('thinkingDefault') or '').strip()
     agents_list = agents_cfg.get('list', [])
     merged_models = _collect_openclaw_models(cfg)
 
@@ -149,6 +186,7 @@ def main():
             'label': meta['label'], 'role': meta['role'], 'duty': meta['duty'], 'emoji': meta['emoji'],
             'model': normalize_model(ag.get('model', default_model), default_model),
             'defaultModel': default_model,
+            'thinkingDefault': str(ag.get('thinkingDefault') or ''),
             'workspace': workspace,
             'skills': get_skills(workspace),
             'allowAgents': allow_agents,
@@ -175,6 +213,7 @@ def main():
             'label': meta['label'], 'role': meta['role'], 'duty': meta['duty'], 'emoji': meta['emoji'],
             'model': extra['model'],
             'defaultModel': default_model,
+            'thinkingDefault': '',
             'workspace': extra['workspace'],
             'skills': get_skills(extra['workspace']),
             'allowAgents': extra['allowAgents'],
@@ -193,6 +232,7 @@ def main():
     payload = {
         'generatedAt': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'defaultModel': default_model,
+        'defaultThinking': default_thinking,
         'knownModels': merged_models,
         'dispatchChannel': existing_cfg.get('dispatchChannel') or os.getenv('DEFAULT_DISPATCH_CHANNEL', ''),
         'agents': result,

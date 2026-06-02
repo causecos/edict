@@ -12,7 +12,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useStore, DEPTS } from '../store';
+import { useStore, DEPTS, isEdict } from '../store';
 import { api } from '../api';
 
 // ── 常量 ──
@@ -295,7 +295,7 @@ export default function CourtDiscussion() {
 
   // ── 預設議題（從當前旨意中提取）──
   const activeEdicts = (liveStatus?.tasks || []).filter(
-    (t) => /^JJC-/i.test(t.id) && !['Done', 'Cancelled'].includes(t.state),
+    (t) => isEdict(t) && !['Done', 'Cancelled'].includes(t.state),
   );
 
   const presetTopics = [

@@ -23,12 +23,16 @@ import subprocess
 import tempfile
 import time
 import uuid
+from contextlib import suppress
 from datetime import datetime, timezone
 
 from ..config import get_settings
 from ..services.event_bus import (
     EventBus,
     TOPIC_TASK_DISPATCH,
+    TOPIC_TASK_DISPATCH_ALERT,
+    TOPIC_TASK_DISPATCH_FAILED,
+    TOPIC_TASK_DISPATCH_STARTED,
     TOPIC_TASK_STALLED,
     TOPIC_TASK_STATUS,
     TOPIC_AGENT_THOUGHTS,
@@ -338,6 +342,7 @@ class DispatchWorker:
         self._inflight: set[str] = set()
         # 執行時間記錄（僅用於監控告警）
         self._durations: dict[str, list[float]] = {}
+        self._heartbeat_task: asyncio.Task | None = None
 
     def _get_bucket(self, agent_id: str) -> asyncio.Semaphore:
         """根據 agent 類型返回對應桶的信號量。"""
@@ -345,6 +350,32 @@ class DispatchWorker:
             if agent_id in cfg["agents"]:
                 return self._buckets[name]
         return self._buckets["slow"]  # 未知 Agent 歸入慢桶
+
+    async def _heartbeat_loop(self):
+        """定時發布 worker 心跳，供觀測層使用。"""
+        interval = max(5, int(get_settings().heartbeat_interval_sec))
+        while self._running:
+            try:
+                await self.bus.publish(
+                    topic=TOPIC_AGENT_HEARTBEAT,
+                    trace_id=str(uuid.uuid4()),
+                    event_type="worker.heartbeat",
+                    producer="dispatcher",
+                    payload={
+                        "worker": "dispatch-worker",
+                        "consumer": CONSUMER,
+                        "group": GROUP,
+                        "pid": os.getpid(),
+                        "active_dispatches": len(self._active_tasks),
+                        "inflight": len(self._inflight),
+                    },
+                )
+            except Exception as e:
+                log.warning(f"Heartbeat publish failed: {e}")
+            try:
+                await asyncio.sleep(interval)
+            except asyncio.CancelledError:
+                break
 
     async def start(self):
         await self.bus.connect()
@@ -354,6 +385,7 @@ class DispatchWorker:
 
         # 恢復崩潰遺留
         await self._recover_pending()
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
         while self._running:
             try:
@@ -364,6 +396,11 @@ class DispatchWorker:
 
     async def stop(self):
         self._running = False
+        if self._heartbeat_task:
+            self._heartbeat_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._heartbeat_task
+            self._heartbeat_task = None
         # 等待進行中的 agent 調用完成
         if self._active_tasks:
             log.info(f"Waiting for {len(self._active_tasks)} active dispatches...")
@@ -427,13 +464,13 @@ class DispatchWorker:
             if reminder:
                 enriched_message = f"{enriched_message}\n{reminder}"
 
-            # 發布心跳
+            # 發布派發開始事件
             await self.bus.publish(
-                topic=TOPIC_AGENT_HEARTBEAT,
+                topic=TOPIC_TASK_DISPATCH_STARTED,
                 trace_id=trace_id,
-                event_type="agent.dispatch.start",
+                event_type="task.dispatch.started",
                 producer="dispatcher",
-                payload={"task_id": task_id, "agent": agent},
+                payload={"task_id": task_id, "agent": agent, "state": state},
             )
 
             try:
@@ -457,13 +494,14 @@ class DispatchWorker:
                         log.warning(f"🛡️ {w}")
                     # 發布注入告警事件
                     await self.bus.publish(
-                        topic=TOPIC_TASK_STALLED,
+                        topic=TOPIC_TASK_DISPATCH_ALERT,
                         trace_id=trace_id,
                         event_type="agent.injection.detected",
                         producer="dispatcher",
                         payload={
                             "task_id": task_id,
                             "agent": agent,
+                            "state": state,
                             "warnings": injection_warnings,
                         },
                     )
@@ -520,13 +558,15 @@ class DispatchWorker:
                     f"(retryable={e.retryable}, attempts={delivery_count + 1}): {e}"
                 )
                 await self.bus.publish(
-                    topic=TOPIC_TASK_STALLED,
+                    topic=TOPIC_TASK_DISPATCH_FAILED,
                     trace_id=trace_id,
                     event_type="task.dispatch.failed",
                     producer="dispatcher",
                     payload={
                         "task_id": task_id,
                         "agent": agent,
+                        "state": state,
+                        "assignee_org": payload.get("assignee_org", ""),
                         "error": str(e),
                         "retryable": e.retryable,
                         "attempts": delivery_count + 1,

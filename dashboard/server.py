@@ -7,7 +7,10 @@ Endpoints:
   GET  /                       → dashboard.html
   GET  /api/live-status        → data/live_status.json
   GET  /api/agent-config       → data/agent_config.json
+  GET  /api/source-mode        → 來源模式與 backend 健康狀態
+  POST /api/source-mode       → {mode, backendApiBase?, timeoutMs?}
   POST /api/set-model          → {agentId, model}
+  POST /api/set-thinking       → {agentId, thinking}
   GET  /api/model-change-log   → data/model_change_log.json
   GET  /api/last-result        → data/last_model_change_result.json
 """
@@ -182,6 +185,18 @@ def _save_task_source_mode(cfg):
     atomic_json_write(TASK_SOURCE_MODE_FILE, _normalize_task_source_mode(cfg))
 
 
+def _task_source_mode_status(cfg=None):
+    """回傳資料來源模式設定與 backend 健康狀態。"""
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    health = _backend_health(cfg)
+    return {
+        'ok': True,
+        'config': cfg,
+        'backend': health,
+        'effective': _effective_source_mode(cfg, health.get('ok')),
+    }
+
+
 def _backend_health(cfg=None):
     """檢測 backend API 健康。"""
     cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
@@ -204,6 +219,28 @@ def _backend_health(cfg=None):
             'error': str(e),
             'url': health_url,
         }
+
+
+# ── i18n 多語言 ──
+
+I18N_FILE = pathlib.Path(__file__).resolve().parent / 'i18n.json'
+_I18N_CACHE: dict | None = None
+_I18N_CACHE_MTIME: float = 0.0
+
+def get_i18n_data() -> dict:
+    """加載 i18n.json，帶檔案 mtime 快取。"""
+    global _I18N_CACHE, _I18N_CACHE_MTIME
+    try:
+        mtime = I18N_FILE.stat().st_mtime if I18N_FILE.exists() else 0
+        if _I18N_CACHE is not None and mtime == _I18N_CACHE_MTIME:
+            return _I18N_CACHE
+        if I18N_FILE.exists():
+            _I18N_CACHE = json.loads(I18N_FILE.read_text(encoding='utf-8'))
+            _I18N_CACHE_MTIME = mtime
+            return _I18N_CACHE
+    except Exception:
+        pass
+    return {}
 
 
 def _effective_source_mode(cfg, backend_ok=None):
@@ -2606,8 +2643,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self._check_auth():
             return
-        if p in ('', '/dashboard', '/dashboard.html'):
+        if p in ('', '/dashboard'):
+            self.send_file(pathlib.Path(__file__).resolve().parent / 'dashboard.html')
+        elif p == '/spa':
             self.send_file(DIST / 'index.html')
+        elif p == '/dashboard.html':
+            self.send_file(pathlib.Path(__file__).resolve().parent / 'dashboard.html')
         elif p == '/healthz':
             task_data_dir = get_task_data_dir()
             checks = {'dataDir': task_data_dir.is_dir(), 'tasksReadable': (task_data_dir / 'tasks_source.json').exists()}
@@ -2615,10 +2656,9 @@ class Handler(BaseHTTPRequestHandler):
             all_ok = all(checks.values())
             self.send_json({'status': 'ok' if all_ok else 'degraded', 'ts': now_iso(), 'checks': checks})
         elif p == '/api/source-mode':
-            cfg = _load_task_source_mode()
-            health = _backend_health(cfg)
-            effective = _effective_source_mode(cfg, health.get('ok'))
-            self.send_json({'ok': True, 'config': cfg, 'backend': health, 'effective': effective})
+            self.send_json(_task_source_mode_status())
+        elif p == '/api/i18n':
+            self.send_json(get_i18n_data())
         elif p == '/api/live-status':
             self.send_json(get_live_status_with_mode())
         elif p == '/api/agent-config':
@@ -2812,6 +2852,24 @@ class Handler(BaseHTTPRequestHandler):
             cfg_path = DATA / 'morning_brief_config.json'
             cfg_path.write_text(json.dumps(body, ensure_ascii=False, indent=2))
             self.send_json({'ok': True, 'message': '訂閱配置已保存'})
+            return
+
+        if p == '/api/source-mode':
+            if not isinstance(body, dict):
+                self.send_json({'ok': False, 'error': '請求體必須是 JSON 對象'}, 400)
+                return
+            current = _load_task_source_mode()
+            mode = str(body.get('mode') or current['mode']).lower().strip()
+            if mode not in ('auto', 'json', 'db'):
+                self.send_json({'ok': False, 'error': 'mode 必須是 auto/json/db 之一'}, 400)
+                return
+            cfg = {
+                'mode': mode,
+                'backendApiBase': body.get('backendApiBase', current['backendApiBase']),
+                'timeoutMs': body.get('timeoutMs', current['timeoutMs']),
+            }
+            _save_task_source_mode(cfg)
+            self.send_json(_task_source_mode_status(cfg))
             return
 
         if p == '/api/scheduler-scan':
@@ -3035,6 +3093,35 @@ class Handler(BaseHTTPRequestHandler):
 
             threading.Thread(target=apply_async, daemon=True).start()
             self.send_json({'ok': True, 'message': f'Queued: {agent_id} → {model}'})
+
+        elif p == '/api/set-thinking':
+            agent_id = body.get('agentId', '').strip()
+            thinking = body.get('thinking', '').strip()
+            allowed = {'', '__default__', 'default', 'follow', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'adaptive', 'max'}
+            if not agent_id:
+                self.send_json({'ok': False, 'error': 'agentId required'}, 400)
+                return
+            if thinking not in allowed:
+                self.send_json({'ok': False, 'error': 'invalid thinking'}, 400)
+                return
+
+            pending_path = DATA / 'pending_thinking_changes.json'
+            def update_pending_thinking(current):
+                current = [x for x in current if x.get('agentId') != agent_id]
+                current.append({'agentId': agent_id, 'thinking': thinking})
+                return current
+            atomic_json_update(pending_path, update_pending_thinking, [])
+
+            def apply_thinking_async():
+                try:
+                    subprocess.run(['python3', str(SCRIPTS / 'apply_thinking_changes.py')], timeout=30)
+                    subprocess.run(['python3', str(SCRIPTS / 'sync_agent_config.py')], timeout=10)
+                except Exception as e:
+                    print(f'[apply thinking error] {e}', file=sys.stderr)
+
+            threading.Thread(target=apply_thinking_async, daemon=True).start()
+            pretty = 'default' if thinking in ('', '__default__', 'default', 'follow') else thinking
+            self.send_json({'ok': True, 'message': f'Queued THINK: {agent_id} → {pretty}'})
 
         # Fix #139: 設置派發渠道（feishu/telegram/wecom/signal/tui）
         elif p == '/api/set-dispatch-channel':

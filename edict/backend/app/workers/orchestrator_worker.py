@@ -23,12 +23,13 @@ from datetime import datetime, timezone, timedelta
 
 from ..config import get_settings
 from ..db import async_session
-from ..models.task import TaskState, STATE_AGENT_MAP, ORG_AGENT_MAP
+from ..models.task import TaskState, STATE_AGENT_MAP, ORG_AGENT_MAP, TERMINAL_STATES
 from ..services.event_bus import (
     EventBus,
     TOPIC_TASK_CREATED,
     TOPIC_TASK_STATUS,
     TOPIC_TASK_DISPATCH,
+    TOPIC_TASK_DISPATCH_FAILED,
     TOPIC_TASK_COMPLETED,
     TOPIC_TASK_STALLED,
     TOPIC_TASK_ESCALATED,
@@ -64,6 +65,7 @@ WATCHED_TOPICS = [
     TOPIC_TASK_STATUS,
     TOPIC_TASK_COMPLETED,
     TOPIC_TASK_STALLED,
+    TOPIC_TASK_DISPATCH_FAILED,
 ]
 
 
@@ -162,6 +164,8 @@ class OrchestratorWorker:
             await self._on_task_completed(payload, trace_id)
         elif topic == TOPIC_TASK_STALLED:
             await self._on_task_stalled(payload, trace_id)
+        elif topic == TOPIC_TASK_DISPATCH_FAILED:
+            await self._on_task_dispatch_failed(payload, trace_id)
 
     async def _on_task_created(self, payload: dict, trace_id: str):
         """任務創建 → 派發給太子 agent 起草。"""
@@ -236,6 +240,81 @@ class OrchestratorWorker:
         """任務完成 → 記錄日誌。"""
         task_id = payload.get("task_id")
         log.info(f"🎉 Task {task_id} completed. trace={trace_id}")
+
+    async def _on_task_dispatch_failed(self, payload: dict, trace_id: str):
+        """派發失敗 → 直接升級或標記阻塞，不再佔用停滯重試語意。"""
+        task_id = payload.get("task_id")
+        current_state = payload.get("state", "")
+        assignee_org = payload.get("assignee_org", "")
+        agent = payload.get("agent", "")
+        error = payload.get("error", "")
+        retryable = bool(payload.get("retryable", False))
+        attempts = int(payload.get("attempts", 0))
+
+        log.warning(
+            f"🚫 Dispatch failed for task {task_id}: state={current_state} agent={agent} "
+            f"retryable={retryable} attempts={attempts} trace={trace_id} error={error}"
+        )
+
+        escalate_to = _ESCALATION_PATH.get(current_state)
+        if escalate_to:
+            escalate_agent = STATE_AGENT_MAP.get(escalate_to, "shangshu")
+            log.info(
+                f"⬆️ Dispatch failure escalation for {task_id}: {current_state} → {escalate_to.value}"
+            )
+            await self.bus.publish(
+                topic=TOPIC_TASK_ESCALATED,
+                trace_id=trace_id,
+                event_type="task.escalated",
+                producer="orchestrator",
+                payload={
+                    "task_id": task_id,
+                    "from_state": current_state,
+                    "to_state": escalate_to.value,
+                    "escalation_level": 1,
+                    "reason": f"派發失敗：{error or '未知錯誤'}",
+                    "dispatch_error": error,
+                    "dispatch_attempts": attempts,
+                    "dispatch_retryable": retryable,
+                },
+            )
+            await self.bus.publish(
+                topic=TOPIC_TASK_DISPATCH,
+                trace_id=trace_id,
+                event_type="task.dispatch.escalation",
+                producer="orchestrator",
+                payload={
+                    "task_id": task_id,
+                    "agent": escalate_agent,
+                    "state": escalate_to.value,
+                    "message": f"派發失敗後升級處理: {error or '未知錯誤'}",
+                    "escalation_level": 1,
+                    "dispatch_error": error,
+                    "dispatch_attempts": attempts,
+                    "dispatch_retryable": retryable,
+                },
+            )
+            return
+
+        log.error(
+            f"🚨 Dispatch failure exhausted recovery for {task_id}. Marking as Blocked."
+        )
+        await self.bus.publish(
+            topic=TOPIC_TASK_STATUS,
+            trace_id=trace_id,
+            event_type="task.state.Blocked",
+            producer="orchestrator",
+            payload={
+                "task_id": task_id,
+                "from": current_state,
+                "to": TaskState.Blocked.value,
+                "reason": f"任務派發失敗且無上級可升級：{error or '未知錯誤'}",
+                "assignee_org": assignee_org,
+                "dispatch_error": error,
+                "dispatch_attempts": attempts,
+                "dispatch_retryable": retryable,
+            },
+        )
 
     async def _on_task_stalled(self, payload: dict, trace_id: str):
         """任務停滯 → 自動重試或升級。
@@ -339,11 +418,11 @@ class OrchestratorWorker:
     # ── 停滯任務檢測器 ──
 
     async def _stall_check_loop(self):
-        """定時掃描 Doing/Next 狀態超時任務，發布 task.stalled 事件。"""
+        """定時掃描非終止狀態超時任務，發布 task.stalled 事件。"""
         while self._running:
             try:
-                await asyncio.sleep(STALL_CHECK_INTERVAL_SEC)
                 await self._check_stalled()
+                await asyncio.sleep(STALL_CHECK_INTERVAL_SEC)
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -351,16 +430,21 @@ class OrchestratorWorker:
                 await asyncio.sleep(STALL_CHECK_INTERVAL_SEC)
 
     async def _check_stalled(self):
-        """掃描數據庫中 Doing/Next 狀態超過閾值未更新的任務。"""
+        """掃描數據庫中非終止狀態超過閾值未更新的任務。"""
         threshold = datetime.now(timezone.utc) - timedelta(seconds=STALL_THRESHOLD_SEC)
+
+        # 所有非終止的 active 狀態（排除 Blocked，因 Blocked 已確認需人工介入）
+        NON_TERMINAL_STATES = [
+            s for s in TaskState
+            if s not in TERMINAL_STATES and s != TaskState.Blocked
+        ]
 
         async with async_session() as session:
             svc = TaskService(session)
-            # 查找超時任務：state in (Doing, Next) 且 updated_at < threshold
             from sqlalchemy import select
             from ..models.task import Task
             stmt = select(Task).where(
-                Task.state.in_([TaskState.Doing, TaskState.Next]),
+                Task.state.in_(NON_TERMINAL_STATES),
                 Task.updated_at < threshold,
                 Task.archived == False,  # noqa: E712
             )

@@ -25,6 +25,10 @@ TOPIC_TASK_PLANNING_COMPLETE = "task.planning.complete"
 TOPIC_TASK_REVIEW_REQUEST = "task.review.request"
 TOPIC_TASK_REVIEW_RESULT = "task.review.result"
 TOPIC_TASK_DISPATCH = "task.dispatch"
+TOPIC_TASK_DISPATCH_STARTED = "task.dispatch.started"
+TOPIC_TASK_DISPATCH_FAILED = "task.dispatch.failed"
+TOPIC_TASK_DISPATCH_ALERT = "task.dispatch.alert"
+TOPIC_TASK_AUDIT = "task.audit"
 TOPIC_TASK_STATUS = "task.status"
 TOPIC_TASK_COMPLETED = "task.completed"
 TOPIC_TASK_CLOSED = "task.closed"
@@ -225,38 +229,6 @@ class EventBus:
                         data["meta"] = json.loads(data["meta"])
                     events.append((topic, entry_id, data))
         return events
-
-    async def publish_batch(
-        self,
-        events: list[dict],
-    ) -> list[str]:
-        """批量發布事件（pipeline 模式，減少 RTT）。
-
-        每個 event dict 須包含: topic, trace_id, event_type, producer, payload, meta(可選)
-        Returns:
-            list of entry_ids
-        """
-        pipe = self.redis.pipeline(transaction=False)
-        for evt in events:
-            topic = evt["topic"]
-            event_data = {
-                "event_id": str(uuid.uuid4()),
-                "trace_id": evt["trace_id"],
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "topic": topic,
-                "event_type": evt["event_type"],
-                "producer": evt["producer"],
-                "payload": json.dumps(evt.get("payload", {}), ensure_ascii=False),
-                "meta": json.dumps(evt.get("meta", {}), ensure_ascii=False),
-            }
-            stream_key = self._stream_key(topic)
-            pipe.xadd(stream_key, event_data, maxlen=10000)
-            pipe.publish(f"edict:pubsub:{topic}", json.dumps(event_data, ensure_ascii=False))
-        results = await pipe.execute()
-        # 每個事件產生 2 個 pipeline 命令 (xadd + publish)，entry_id 在偶數位
-        entry_ids = [results[i] for i in range(0, len(results), 2)]
-        log.debug(f"📤 Batch published {len(events)} events")
-        return entry_ids
 
     async def get_delivery_count(self, topic: str, group: str, entry_id: str) -> int:
         """獲取某條消息的累計投遞次數。"""

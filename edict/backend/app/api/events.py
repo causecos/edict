@@ -69,8 +69,12 @@ async def list_topics():
         TOPIC_TASK_CREATED,
         TOPIC_TASK_STATUS,
         TOPIC_TASK_DISPATCH,
+        TOPIC_TASK_DISPATCH_STARTED,
+        TOPIC_TASK_DISPATCH_FAILED,
+        TOPIC_TASK_DISPATCH_ALERT,
         TOPIC_TASK_COMPLETED,
         TOPIC_TASK_STALLED,
+        TOPIC_TASK_AUDIT,
         TOPIC_AGENT_THOUGHTS,
         TOPIC_AGENT_HEARTBEAT,
     )
@@ -79,9 +83,13 @@ async def list_topics():
             {"name": TOPIC_TASK_CREATED, "description": "任務創建"},
             {"name": TOPIC_TASK_STATUS, "description": "狀態變更"},
             {"name": TOPIC_TASK_DISPATCH, "description": "Agent 派發"},
+            {"name": TOPIC_TASK_DISPATCH_STARTED, "description": "派發開始"},
+            {"name": TOPIC_TASK_DISPATCH_FAILED, "description": "派發失敗"},
+            {"name": TOPIC_TASK_DISPATCH_ALERT, "description": "派發安全告警"},
             {"name": TOPIC_TASK_COMPLETED, "description": "任務完成"},
-            {"name": TOPIC_TASK_STALLED, "description": "任務停滯"},
+            {"name": TOPIC_TASK_STALLED, "description": "任務停滯（巡檢）"},
+            {"name": TOPIC_TASK_AUDIT, "description": "任務審計快照"},
             {"name": TOPIC_AGENT_THOUGHTS, "description": "Agent 思考流"},
-            {"name": TOPIC_AGENT_HEARTBEAT, "description": "Agent 心跳"},
+            {"name": TOPIC_AGENT_HEARTBEAT, "description": "Worker 心跳"},
         ]
     }

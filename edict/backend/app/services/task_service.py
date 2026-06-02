@@ -16,9 +16,11 @@ from typing import Any
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..models.event import Event
 from ..models.outbox import OutboxEvent
 from ..models.task import Task, TaskState, STATE_TRANSITIONS, TERMINAL_STATES
 from .event_bus import (
+    TOPIC_TASK_AUDIT,
     TOPIC_TASK_CREATED,
     TOPIC_TASK_STATUS,
     TOPIC_TASK_COMPLETED,
@@ -73,6 +75,33 @@ class TaskService:
             "report": report,
             "message": message or report,
         }
+
+    @classmethod
+    def _audit_snapshot(cls, task: Task, *, message: str = "", **extra: Any) -> dict[str, Any]:
+        """生成寫入 events 表的審計 payload。"""
+        payload = cls._dispatch_snapshot(task, message=message)
+        if extra:
+            payload.update(extra)
+        return payload
+
+    def _record_audit_event(
+        self,
+        task: Task,
+        *,
+        event_type: str,
+        producer: str,
+        payload: dict[str, Any],
+        meta: dict[str, Any] | None = None,
+    ) -> None:
+        """將任務變更寫入 events 表，供 /api/events 查詢。"""
+        self.db.add(Event(
+            trace_id=str(task.trace_id),
+            topic=TOPIC_TASK_AUDIT,
+            event_type=event_type,
+            producer=producer,
+            payload=payload,
+            meta=meta or {},
+        ))
 
     # ── 創建 ──
 
@@ -134,6 +163,12 @@ class TaskService:
             payload=self._dispatch_snapshot(task, message=f"新任務已創建: {title}"),
         )
         self.db.add(outbox)
+        self._record_audit_event(
+            task,
+            event_type="task.created",
+            producer=creator,
+            payload=self._audit_snapshot(task, message=f"新任務已創建: {title}"),
+        )
 
         await self.db.commit()
         log.info(f"Created task {task.task_id}: {title} [{initial_state.value}]")
@@ -203,6 +238,19 @@ class TaskService:
             },
         )
         self.db.add(outbox)
+        self._record_audit_event(
+            task,
+            event_type=f"task.state.{new_state.value}",
+            producer=agent,
+            payload=self._audit_snapshot(
+                task,
+                message=reason or f"任務已流轉到 {new_state.value}",
+                from_state=old_state.value,
+                to_state=new_state.value,
+                reason=reason,
+                agent=agent,
+            ),
+        )
 
         await self.db.commit()
         log.info(f"Task {task_id} state: {old_state.value} → {new_state.value} by {agent}")
@@ -230,6 +278,17 @@ class TaskService:
             },
         )
         self.db.add(outbox)
+        self._record_audit_event(
+            task,
+            event_type="task.dispatch.request",
+            producer="task_service",
+            payload=self._audit_snapshot(
+                task,
+                message=message or self._report_text(task),
+                agent=target_agent,
+                dispatch_message=message,
+            ),
+        )
         await self.db.commit()
         log.info(f"Dispatch requested: task {task_id} → agent {target_agent}")
 
@@ -256,6 +315,16 @@ class TaskService:
         task.progress_log = [*task.progress_log, entry]
         task.now = content or task.now
         task.updated_at = datetime.now(timezone.utc)
+        self._record_audit_event(
+            task,
+            event_type="task.progress.updated",
+            producer=agent,
+            payload=self._audit_snapshot(
+                task,
+                message=content,
+                progress_entry=entry,
+            ),
+        )
         await self.db.commit()
         return task
 
@@ -267,6 +336,12 @@ class TaskService:
         task = await self._get_task(task_id)
         task.todos = todos
         task.updated_at = datetime.now(timezone.utc)
+        self._record_audit_event(
+            task,
+            event_type="task.todos.updated",
+            producer="task_service",
+            payload=self._audit_snapshot(task, message="更新 TODO 清單", todos=todos),
+        )
         await self.db.commit()
         return task
 
@@ -278,6 +353,12 @@ class TaskService:
         task = await self._get_task(task_id)
         task.scheduler = scheduler
         task.updated_at = datetime.now(timezone.utc)
+        self._record_audit_event(
+            task,
+            event_type="task.scheduler.updated",
+            producer="task_service",
+            payload=self._audit_snapshot(task, message="更新排期資訊", scheduler=scheduler),
+        )
         await self.db.commit()
         return task
 

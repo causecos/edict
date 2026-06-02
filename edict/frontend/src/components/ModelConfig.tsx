@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { api } from '../api';
 
@@ -13,6 +13,18 @@ const FALLBACK_MODELS = [
   { id: 'copilot/claude-opus-4.5', l: 'Claude Opus 4.5', p: 'Copilot' },
   { id: 'copilot/gpt-4o', l: 'GPT-4o', p: 'Copilot' },
   { id: 'copilot/gemini-2.5-pro', l: 'Gemini 2.5 Pro', p: 'Copilot' },
+];
+
+const THINKING_OPTIONS = [
+  { id: '__default__', label: '跟隨全域預設' },
+  { id: 'off', label: 'off' },
+  { id: 'minimal', label: 'minimal' },
+  { id: 'low', label: 'low' },
+  { id: 'medium', label: 'medium' },
+  { id: 'high', label: 'high' },
+  { id: 'xhigh', label: 'xhigh' },
+  { id: 'adaptive', label: 'adaptive' },
+  { id: 'max', label: 'max' },
 ];
 
 const CHANNELS = [
@@ -32,7 +44,9 @@ export default function ModelConfig() {
   const toast = useStore((s) => s.toast);
 
   const [selMap, setSelMap] = useState<Record<string, string>>({});
+  const [thinkSelMap, setThinkSelMap] = useState<Record<string, string>>({});
   const [statusMap, setStatusMap] = useState<Record<string, { cls: string; text: string }>>({});
+  const [thinkStatusMap, setThinkStatusMap] = useState<Record<string, { cls: string; text: string }>>({});
   const [channelSel, setChannelSel] = useState('feishu');
   const [channelStatus, setChannelStatus] = useState('');
 
@@ -40,18 +54,25 @@ export default function ModelConfig() {
     loadAgentConfig();
   }, [loadAgentConfig]);
 
+  const visibleAgents = useMemo(() => {
+    return (agentConfig?.agents || []).filter((ag) => ag.id !== 'main');
+  }, [agentConfig]);
+
   useEffect(() => {
-    if (agentConfig?.agents) {
+    if (visibleAgents.length) {
       const m: Record<string, string> = {};
-      agentConfig.agents.forEach((ag) => {
+      const t: Record<string, string> = {};
+      visibleAgents.forEach((ag) => {
         m[ag.id] = ag.model;
+        t[ag.id] = ag.thinkingDefault || '__default__';
       });
       setSelMap(m);
+      setThinkSelMap(t);
     }
     if (agentConfig?.dispatchChannel) {
       setChannelSel(agentConfig.dispatchChannel);
     }
-  }, [agentConfig]);
+  }, [visibleAgents, agentConfig]);
 
   if (!agentConfig?.agents) {
     return <div className="empty" style={{ gridColumn: '1/-1' }}>⚠️ 請先啓動本地服務器</div>;
@@ -65,9 +86,16 @@ export default function ModelConfig() {
     setSelMap((p) => ({ ...p, [agentId]: val }));
   };
 
+  const handleThinkSelect = (agentId: string, val: string) => {
+    setThinkSelMap((p) => ({ ...p, [agentId]: val }));
+  };
+
   const resetMC = (agentId: string) => {
-    const ag = agentConfig.agents.find((a) => a.id === agentId);
-    if (ag) setSelMap((p) => ({ ...p, [agentId]: ag.model }));
+    const ag = visibleAgents.find((a) => a.id === agentId);
+    if (ag) {
+      setSelMap((p) => ({ ...p, [agentId]: ag.model }));
+      setThinkSelMap((p) => ({ ...p, [agentId]: ag.thinkingDefault || '__default__' }));
+    }
   };
 
   const applyModel = async (agentId: string) => {
@@ -88,13 +116,34 @@ export default function ModelConfig() {
     }
   };
 
+  const applyThinking = async (agentId: string) => {
+    const thinking = thinkSelMap[agentId] || '__default__';
+    setThinkStatusMap((p) => ({ ...p, [agentId]: { cls: 'pending', text: '⟳ 提交中…' } }));
+    try {
+      const r = await api.setThinking(agentId, thinking);
+      if (r.ok) {
+        setThinkStatusMap((p) => ({ ...p, [agentId]: { cls: 'ok', text: '✅ THINK 已提交，Gateway 重啓中（約5秒）' } }));
+        toast(agentId + ' THINK 已更改', 'ok');
+        setTimeout(() => loadAgentConfig(), 5500);
+      } else {
+        setThinkStatusMap((p) => ({ ...p, [agentId]: { cls: 'err', text: '❌ ' + (r.error || '錯誤') } }));
+      }
+    } catch {
+      setThinkStatusMap((p) => ({ ...p, [agentId]: { cls: 'err', text: '❌ 無法連接服務器' } }));
+    }
+  };
+
   return (
     <div>
       <div className="model-grid">
-        {agentConfig.agents.map((ag) => {
+        {visibleAgents.map((ag) => {
           const sel = selMap[ag.id] || ag.model;
           const changed = sel !== ag.model;
+          const thinkSel = thinkSelMap[ag.id] || '__default__';
+          const thinkCurrent = ag.thinkingDefault || '__default__';
+          const thinkChanged = thinkSel !== thinkCurrent;
           const st = statusMap[ag.id];
+          const stThink = thinkStatusMap[ag.id];
           return (
             <div className="mc-card" key={ag.id}>
               <div className="mc-top">
@@ -108,7 +157,7 @@ export default function ModelConfig() {
                 </div>
               </div>
               <div className="mc-cur">
-                當前: <b>{ag.model}</b>
+                模型: <b>{ag.model}</b>
               </div>
               <select className="msel" value={sel} onChange={(e) => handleSelect(ag.id, e.target.value)}>
                 {models.map((m) => (
@@ -119,13 +168,32 @@ export default function ModelConfig() {
               </select>
               <div className="mc-btns">
                 <button className="btn btn-p" disabled={!changed} onClick={() => applyModel(ag.id)}>
-                  應用
+                  應用模型
                 </button>
                 <button className="btn btn-g" onClick={() => resetMC(ag.id)}>
                   重置
                 </button>
               </div>
               {st && <div className={`mc-st ${st.cls}`}>{st.text}</div>}
+
+              <div className="mc-cur" style={{ marginTop: 10 }}>
+                THINK: <b>{ag.thinkingDefault || `跟隨全域（${agentConfig.defaultThinking || '未設定'}）`}</b>
+              </div>
+              <select className="msel" value={thinkSel} onChange={(e) => handleThinkSelect(ag.id, e.target.value)}>
+                {THINKING_OPTIONS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.id === '__default__'
+                      ? `跟隨全域預設（${agentConfig.defaultThinking || '未設定'}）`
+                      : m.label}
+                  </option>
+                ))}
+              </select>
+              <div className="mc-btns">
+                <button className="btn btn-p" disabled={!thinkChanged} onClick={() => applyThinking(ag.id)}>
+                  應用 THINK
+                </button>
+              </div>
+              {stThink && <div className={`mc-st ${stThink.cls}`}>{stThink.text}</div>}
             </div>
           );
         })}

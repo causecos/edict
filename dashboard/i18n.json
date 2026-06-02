@@ -1,0 +1,2297 @@
+{
+  "page.title": {
+    "zh_TW": "軍機處 · 三省六部總控臺",
+    "zh_CN": "军机处 · 三省六部总控台",
+    "en": "Edict · Imperial Control Panel"
+  },
+  "ceremony.title": {
+    "zh_TW": "早朝開始",
+    "zh_CN": "早朝开始",
+    "en": "Morning Court"
+  },
+  "ceremony.subtitle": {
+    "zh_TW": "各部聽旨",
+    "zh_CN": "各部听旨",
+    "en": "Departments at Your Command"
+  },
+  "ceremony.skip": {
+    "zh_TW": "點擊任意處跳過",
+    "zh_CN": "点击任意处跳过",
+    "en": "Click anywhere to skip"
+  },
+  "header.logo": {
+    "zh_TW": "⚔️ 軍機處 · 三省六部總控臺",
+    "zh_CN": "⚔️ 军机处 · 三省六部总控台",
+    "en": "⚔️ Edict · Imperial Control Panel"
+  },
+  "header.sub": {
+    "zh_TW": "皇上視角 · 實時旨意追蹤",
+    "zh_CN": "皇上视角 · 实时旨意追踪",
+    "en": "Emperor's View · Real-time Edict Tracking"
+  },
+  "header.themeToggle": {
+    "zh_TW": "🌙",
+    "zh_CN": "🌙",
+    "en": "🌙"
+  },
+  "header.feedback": {
+    "zh_TW": "🙏 祈告上蒼",
+    "zh_CN": "🙏 祈告上苍",
+    "en": "🙏 Report to Heaven"
+  },
+  "header.sync": {
+    "zh_TW": "⟳ 同步中",
+    "zh_CN": "⟳ 同步中",
+    "en": "⟳ Syncing"
+  },
+  "header.syncOk": {
+    "zh_TW": "✅ 同步正常",
+    "zh_CN": "✅ 同步正常",
+    "en": "✅ Sync OK"
+  },
+  "header.syncWarn": {
+    "zh_TW": "⚠️ 同步異常",
+    "zh_CN": "⚠️ 同步异常",
+    "en": "⚠️ Sync Warning"
+  },
+  "header.syncErr": {
+    "zh_TW": "❌ 服務器未啓動",
+    "zh_CN": "❌ 服务器未启动",
+    "en": "❌ Server Offline"
+  },
+  "header.tasks": {
+    "zh_TW": "— 旨意",
+    "zh_CN": "— 旨意",
+    "en": "— Edicts"
+  },
+  "header.tasksFormat": {
+    "zh_TW": "道旨意",
+    "zh_CN": "道旨意",
+    "en": "edicts"
+  },
+  "header.refresh": {
+    "zh_TW": "⟳ 立即刷新",
+    "zh_CN": "⟳ 立即刷新",
+    "en": "⟳ Refresh"
+  },
+  "tab.edicts": {
+    "zh_TW": "📜 旨意看板",
+    "zh_CN": "📜 旨意看板",
+    "en": "📜 Edicts"
+  },
+  "tab.monitor": {
+    "zh_TW": "🔭 省部調度",
+    "zh_CN": "🔭 省部调度",
+    "en": "🔭 Departments"
+  },
+  "tab.officials": {
+    "zh_TW": "👥 官員總覽",
+    "zh_CN": "👥 官员总览",
+    "en": "👥 Officials"
+  },
+  "tab.models": {
+    "zh_TW": "⚙️ 模型配置",
+    "zh_CN": "⚙️ 模型配置",
+    "en": "⚙️ Models"
+  },
+  "tab.skills": {
+    "zh_TW": "🛠️ 技能配置",
+    "zh_CN": "🛠️ 技能配置",
+    "en": "🛠️ Skills"
+  },
+  "tab.sessions": {
+    "zh_TW": "💬 小任務",
+    "zh_CN": "💬 小任务",
+    "en": "💬 Tasks"
+  },
+  "tab.memorials": {
+    "zh_TW": "📜 奏摺閣",
+    "zh_CN": "📜 奏折阁",
+    "en": "📜 Archives"
+  },
+  "tab.templates": {
+    "zh_TW": "📜 旨庫",
+    "zh_CN": "📜 旨库",
+    "en": "📜 Templates"
+  },
+  "tab.morning": {
+    "zh_TW": "📰 天下要聞",
+    "zh_CN": "📰 天下要闻",
+    "en": "📰 Briefing"
+  },
+  "edicts.title": {
+    "zh_TW": "📜 旨意看板",
+    "zh_CN": "📜 旨意看板",
+    "en": "📜 Edicts Board"
+  },
+  "edicts.empty": {
+    "zh_TW": "暫無旨意",
+    "zh_CN": "暂无旨意",
+    "en": "No Edicts"
+  },
+  "edicts.emptyHint": {
+    "zh_TW": "通過飛書向太子發送任務，太子分揀後轉中書省處理",
+    "zh_CN": "通过飞书向太子发送任务，太子分拣后转中书省处理",
+    "en": "Send tasks to the Crown Prince via Feishu. The Prince sorts and forwards to the Secretariat for processing."
+  },
+  "edicts.filterLabel": {
+    "zh_TW": "📋 篩選：",
+    "zh_CN": "📋 筛选：",
+    "en": "📋 Filter:"
+  },
+  "edicts.filterActive": {
+    "zh_TW": "🔥 進行中",
+    "zh_CN": "🔥 进行中",
+    "en": "🔥 Active"
+  },
+  "edicts.filterArchived": {
+    "zh_TW": "📦 已歸檔",
+    "zh_CN": "📦 已归档",
+    "en": "📦 Archived"
+  },
+  "edicts.filterAll": {
+    "zh_TW": "全部",
+    "zh_CN": "全部",
+    "en": "All"
+  },
+  "edicts.archiveCount": {
+    "zh_TW": "活躍 {n} · 歸檔 {m} · 共 {total}",
+    "zh_CN": "活跃 {n} · 归档 {m} · 共 {total}",
+    "en": "Active {n} · Archived {m} · {total} total"
+  },
+  "edicts.scanBtn": {
+    "zh_TW": "🧭 太子巡檢",
+    "zh_CN": "🧭 太子巡检",
+    "en": "🧭 Prince Inspection"
+  },
+  "edicts.scanNotRun": {
+    "zh_TW": "未巡檢",
+    "zh_CN": "未巡检",
+    "en": "Not inspected"
+  },
+  "edicts.scanRecent": {
+    "zh_TW": "最近巡檢: {n} 個動作",
+    "zh_CN": "最近巡检: {n} 个动作",
+    "en": "Last inspection: {n} actions"
+  },
+  "edicts.scanDetail": {
+    "zh_TW": "查看巡檢詳情",
+    "zh_CN": "查看巡检详情",
+    "en": "View inspection details"
+  },
+  "edicts.scanDetailHide": {
+    "zh_TW": "收起巡檢詳情",
+    "zh_CN": "收起巡检详情",
+    "en": "Hide inspection details"
+  },
+  "edicts.scanCopy": {
+    "zh_TW": "📋 複製巡檢報告",
+    "zh_CN": "📋 复制巡检报告",
+    "en": "📋 Copy inspection report"
+  },
+  "edicts.archiveAll": {
+    "zh_TW": "📦 一鍵歸檔已完成",
+    "zh_CN": "📦 一键归档已完成",
+    "en": "📦 Archive all completed"
+  },
+  "edicts.cardActionStop": {
+    "zh_TW": "⏸ 叫停",
+    "zh_CN": "⏸ 叫停",
+    "en": "⏸ Stop"
+  },
+  "edicts.cardActionCancel": {
+    "zh_TW": "🚫 取消",
+    "zh_CN": "🚫 取消",
+    "en": "🚫 Cancel"
+  },
+  "edicts.cardActionResume": {
+    "zh_TW": "▶ 恢復",
+    "zh_CN": "▶ 恢复",
+    "en": "▶ Resume"
+  },
+  "edicts.cardActionArchive": {
+    "zh_TW": "📦 歸檔",
+    "zh_CN": "📦 归档",
+    "en": "📦 Archive"
+  },
+  "edicts.cardActionUnarchive": {
+    "zh_TW": "📤 取消歸檔",
+    "zh_CN": "📤 取消归档",
+    "en": "📤 Unarchive"
+  },
+  "edicts.cardUntitled": {
+    "zh_TW": "(無標題)",
+    "zh_CN": "(无标题)",
+    "en": "(Untitled)"
+  },
+  "edicts.cardCurrent": {
+    "zh_TW": "當前:",
+    "zh_CN": "当前:",
+    "en": "Current:"
+  },
+  "edicts.cardTodoComplete": {
+    "zh_TW": "✅ 全部完成",
+    "zh_CN": "✅ 全部完成",
+    "en": "✅ All Done"
+  },
+  "edicts.cardTodoProgress": {
+    "zh_TW": "🔄 進行中",
+    "zh_CN": "🔄 进行中",
+    "en": "🔄 In Progress"
+  },
+  "edicts.cardReviewRound": {
+    "zh_TW": "第 {n} 輪磋商",
+    "zh_CN": "第 {n} 轮磋商",
+    "en": "Review Round {n}"
+  },
+  "monitor.title": {
+    "zh_TW": "🔭 省部調度",
+    "zh_CN": "🔭 省部调度",
+    "en": "🔭 Departments"
+  },
+  "monitor.subtitle": {
+    "zh_TW": "各省部當前承接旨意與執行狀態 · 每5秒自動刷新",
+    "zh_CN": "各省部当前承接旨意与执行状态 · 每5秒自动刷新",
+    "en": "Current edict assignments and execution status per department · Auto-refreshes every 5s"
+  },
+  "monitor.statusRunning": {
+    "zh_TW": "🟢 活躍",
+    "zh_CN": "🟢 活跃",
+    "en": "🟢 Active"
+  },
+  "monitor.statusExecuting": {
+    "zh_TW": "⚙️ 執行中",
+    "zh_CN": "⚙️ 执行中",
+    "en": "⚙️ Executing"
+  },
+  "monitor.statusBlocked": {
+    "zh_TW": "⚠️ 阻塞",
+    "zh_CN": "⚠️ 阻塞",
+    "en": "⚠️ Blocked"
+  },
+  "monitor.statusIdle": {
+    "zh_TW": "⚪ 候命",
+    "zh_CN": "⚪ 候命",
+    "en": "⚪ Standby"
+  },
+  "monitor.idleNoRecord": {
+    "zh_TW": "候命中 · 尚無旨意記錄",
+    "zh_CN": "候命中 · 尚无旨意记录",
+    "en": "On Standby · No edict records"
+  },
+  "monitor.idleRecent": {
+    "zh_TW": "候命中 · 最近參與",
+    "zh_CN": "候命中 · 最近参与",
+    "en": "On Standby · Recently participated"
+  },
+  "monitor.modelUnconfigured": {
+    "zh_TW": "待配置",
+    "zh_CN": "待配置",
+    "en": "Unconfigured"
+  },
+  "monitor.activeCount": {
+    "zh_TW": "活躍",
+    "zh_CN": "活跃",
+    "en": "Active"
+  },
+  "officials.title": {
+    "zh_TW": "👥 官員總覽",
+    "zh_CN": "👥 官员总览",
+    "en": "👥 Officials"
+  },
+  "officials.selectHint": {
+    "zh_TW": "← 點擊左側官員查看詳情",
+    "zh_CN": "← 点击左侧官员查看详情",
+    "en": "← Select an official to view details"
+  },
+  "officials.rankTitle": {
+    "zh_TW": "功績排行",
+    "zh_CN": "功绩排行",
+    "en": "Merit Ranking"
+  },
+  "officials.rankScore": {
+    "zh_TW": "分",
+    "zh_CN": "分",
+    "en": "pts"
+  },
+  "officials.kpiOnDuty": {
+    "zh_TW": "在職官員",
+    "zh_CN": "在职官员",
+    "en": "Officials on Duty"
+  },
+  "officials.kpiDone": {
+    "zh_TW": "累計完成旨意",
+    "zh_CN": "累计完成旨意",
+    "en": "Total Edicts Completed"
+  },
+  "officials.kpiCost": {
+    "zh_TW": "累計費用（含緩存）",
+    "zh_CN": "累计费用（含缓存）",
+    "en": "Total Cost (incl. cache)"
+  },
+  "officials.kpiTop": {
+    "zh_TW": "功績最高",
+    "zh_CN": "功绩最高",
+    "en": "Top Merit"
+  },
+  "officials.activeBanner": {
+    "zh_TW": "🟢 當前活躍：",
+    "zh_CN": "🟢 当前活跃：",
+    "en": "🟢 Currently Active:"
+  },
+  "officials.restOnStandby": {
+    "zh_TW": "其餘官員待命",
+    "zh_CN": "其余官员待命",
+    "en": "Other officials on standby"
+  },
+  "officials.loadError": {
+    "zh_TW": "⚠️ 無法加載，請確認服務器已啓動",
+    "zh_CN": "⚠️ 无法加载，请确认服务器已启动",
+    "en": "⚠️ Unable to load, please verify server is running"
+  },
+  "officials.detailRank": {
+    "zh_TW": "🏅 {rank} · 功績分 {score}",
+    "zh_CN": "🏅 {rank} · 功绩分 {score}",
+    "en": "🏅 {rank} · Merit {score}"
+  },
+  "officials.detailSessions": {
+    "zh_TW": "個會話",
+    "zh_CN": "个会话",
+    "en": "sessions"
+  },
+  "officials.detailMessages": {
+    "zh_TW": "條消息",
+    "zh_CN": "条消息",
+    "en": "messages"
+  },
+  "officials.detailActiveTime": {
+    "zh_TW": "活躍",
+    "zh_CN": "活跃",
+    "en": "Active"
+  },
+  "officials.statsMerit": {
+    "zh_TW": "功績統計",
+    "zh_CN": "功绩统计",
+    "en": "Merit Stats"
+  },
+  "officials.statsDone": {
+    "zh_TW": "完成旨意",
+    "zh_CN": "完成旨意",
+    "en": "Edicts Done"
+  },
+  "officials.statsActive": {
+    "zh_TW": "執行中",
+    "zh_CN": "执行中",
+    "en": "In Progress"
+  },
+  "officials.statsFlow": {
+    "zh_TW": "流轉參與",
+    "zh_CN": "流转参与",
+    "en": "Flow Participation"
+  },
+  "officials.statsTokens": {
+    "zh_TW": "Token 消耗",
+    "zh_CN": "Token 消耗",
+    "en": "Token Usage"
+  },
+  "officials.statsCost": {
+    "zh_TW": "累計費用",
+    "zh_CN": "累计费用",
+    "en": "Total Cost"
+  },
+  "officials.costCNY": {
+    "zh_TW": "人民幣",
+    "zh_CN": "人民币",
+    "en": "CNY"
+  },
+  "officials.costUSD": {
+    "zh_TW": "美元",
+    "zh_CN": "美元",
+    "en": "USD"
+  },
+  "officials.costTotal": {
+    "zh_TW": "總計 {n} tokens（含緩存）",
+    "zh_CN": "总计 {n} tokens（含缓存）",
+    "en": "Total {n} tokens (incl. cache)"
+  },
+  "officials.edictsParticipated": {
+    "zh_TW": "參與旨意（{n} 道）",
+    "zh_CN": "参与旨意（{n} 道）",
+    "en": "Edicts ({n})"
+  },
+  "officials.noEdicts": {
+    "zh_TW": "暫無旨意記錄",
+    "zh_CN": "暂无旨意记录",
+    "en": "No edict records"
+  },
+  "officials.statusIdleLabel": {
+    "zh_TW": "⚪ 待命",
+    "zh_CN": "⚪ 待命",
+    "en": "⚪ Standby"
+  },
+  "models.title": {
+    "zh_TW": "各省部 · 模型配置",
+    "zh_CN": "各省部 · 模型配置",
+    "en": "⚙️ Models"
+  },
+  "models.subtitle": {
+    "zh_TW": "— 更改後自動重啓 Gateway（約5秒）",
+    "zh_CN": "— 更改后自动重启 Gateway（约5秒）",
+    "en": "— Auto-restarts Gateway after changes (~5s)"
+  },
+  "models.current": {
+    "zh_TW": "當前:",
+    "zh_CN": "当前:",
+    "en": "Current:"
+  },
+  "models.apply": {
+    "zh_TW": "應用",
+    "zh_CN": "应用",
+    "en": "Apply"
+  },
+  "models.reset": {
+    "zh_TW": "重置",
+    "zh_CN": "重置",
+    "en": "Reset"
+  },
+  "models.submitting": {
+    "zh_TW": "⟳ 提交中…",
+    "zh_CN": "⟳ 提交中…",
+    "en": "⟳ Submitting..."
+  },
+  "models.success": {
+    "zh_TW": "✅ 已提交，Gateway 重啓中（約5秒）",
+    "zh_CN": "✅ 已提交，Gateway 重启中（约5秒）",
+    "en": "✅ Submitted, Gateway restarting (~5s)"
+  },
+  "models.error": {
+    "zh_TW": "❌ 錯誤",
+    "zh_CN": "❌ 错误",
+    "en": "❌ Error"
+  },
+  "models.serverError": {
+    "zh_TW": "❌ 無法連接服務器",
+    "zh_CN": "❌ 无法连接服务器",
+    "en": "❌ Cannot connect to server"
+  },
+  "models.noData": {
+    "zh_TW": "⚠️ 請先啓動本地服務器：python3 dashboard/server.py",
+    "zh_CN": "⚠️ 请先启动本地服务器：python3 dashboard/server.py",
+    "en": "⚠️ Please start local server: python3 dashboard/server.py"
+  },
+  "models.serverNotStarted": {
+    "zh_TW": "請確保本地服務器已啓動",
+    "zh_CN": "请确保本地服务器已启动",
+    "en": "Please ensure local server is running"
+  },
+  "models.changeLog": {
+    "zh_TW": "變更記錄",
+    "zh_CN": "变更记录",
+    "en": "Change Log"
+  },
+  "models.noChanges": {
+    "zh_TW": "暫無變更",
+    "zh_CN": "暂无变更",
+    "en": "No changes yet"
+  },
+  "models.rolledBack": {
+    "zh_TW": "⚠ 已回滾",
+    "zh_CN": "⚠ 已回滚",
+    "en": "⚠ Rolled back"
+  },
+  "skills.title": {
+    "zh_TW": "各省部 · Skills 配置",
+    "zh_CN": "各省部 · Skills 配置",
+    "en": "🛠️ Skills"
+  },
+  "skills.subtitle": {
+    "zh_TW": "— 點擊技能查看詳情，底部可添加新技能",
+    "zh_CN": "— 点击技能查看详情，底部可添加新技能",
+    "en": "— Click a skill for details, add new skills at the bottom"
+  },
+  "skills.count": {
+    "zh_TW": "技能",
+    "zh_CN": "技能",
+    "en": "skills"
+  },
+  "skills.empty": {
+    "zh_TW": "暫無 Skills",
+    "zh_CN": "暂无 Skills",
+    "en": "No skills"
+  },
+  "skills.noDescription": {
+    "zh_TW": "無描述",
+    "zh_CN": "无描述",
+    "en": "No description"
+  },
+  "skills.add": {
+    "zh_TW": "＋ 添加技能",
+    "zh_CN": "＋ 添加技能",
+    "en": "+ Add Skill"
+  },
+  "skills.loadError": {
+    "zh_TW": "無法加載",
+    "zh_CN": "无法加载",
+    "en": "Unable to load"
+  },
+  "skills.loading": {
+    "zh_TW": "⟳ 加載中…",
+    "zh_CN": "⟳ 加载中…",
+    "en": "⟳ Loading..."
+  },
+  "skills.readError": {
+    "zh_TW": "❌ 無法讀取",
+    "zh_CN": "❌ 无法读取",
+    "en": "❌ Unable to read"
+  },
+  "skills.serverError": {
+    "zh_TW": "❌ 服務器連接失敗",
+    "zh_CN": "❌ 服务器连接失败",
+    "en": "❌ Server connection failed"
+  },
+  "skills.addForm.title": {
+    "zh_TW": "＋ 新增 Skill",
+    "zh_CN": "＋ 新增 Skill",
+    "en": "+ Add Skill"
+  },
+  "skills.addForm.agentContext": {
+    "zh_TW": "爲 {agent} 添加技能",
+    "zh_CN": "为 {agent} 添加技能",
+    "en": "Add skill for {agent}"
+  },
+  "skills.addForm.guideTitle": {
+    "zh_TW": "📋 Skill 規範說明",
+    "zh_CN": "📋 Skill 规范说明",
+    "en": "📋 Skill Guidelines"
+  },
+  "skills.addForm.guideText": {
+    "zh_TW": "• 技能名稱使用小寫英文 + 連字符，如 data-analysis、code-review\n• 創建後會在 ~/.openclaw/workspace-{agent}/skills/{name}/SKILL.md 生成模板文件\n• SKILL.md 使用 YAML frontmatter 頭部（name + description），正文爲 Markdown 格式\n• 技能會在 agent 收到相關任務時自動激活，無需手動觸發",
+    "zh_CN": "• 技能名称使用小写英文 + 连字符，如 data-analysis、code-review\n• 创建后会在 ~/.openclaw/workspace-{agent}/skills/{name}/SKILL.md 生成模板文件\n• SKILL.md 使用 YAML frontmatter 头部（name + description），正文为 Markdown 格式\n• 技能会在 agent 收到相关任务时自动激活，无需手动触发",
+    "en": "• Skill names use lowercase English + hyphens, e.g. data-analysis, code-review\n• Creates template at ~/.openclaw/workspace-{agent}/skills/{name}/SKILL.md\n• SKILL.md uses YAML frontmatter (name + description), body in Markdown\n• Skills auto-activate when agents receive relevant tasks"
+  },
+  "skills.addForm.nameLabel": {
+    "zh_TW": "技能名稱",
+    "zh_CN": "技能名称",
+    "en": "Skill Name"
+  },
+  "skills.addForm.namePlaceholder": {
+    "zh_TW": "如 data-analysis, code-review, doc-writer",
+    "zh_CN": "如 data-analysis, code-review, doc-writer",
+    "en": "e.g. data-analysis, code-review, doc-writer"
+  },
+  "skills.addForm.descLabel": {
+    "zh_TW": "技能描述",
+    "zh_CN": "技能描述",
+    "en": "Description"
+  },
+  "skills.addForm.descHint": {
+    "zh_TW": "(一句話說明用途)",
+    "zh_CN": "(一句话说明用途)",
+    "en": "(one-line purpose)"
+  },
+  "skills.addForm.descPlaceholder": {
+    "zh_TW": "如：負責代碼審查與質量檢測，發現潛在Bug和安全風險",
+    "zh_CN": "如：负责代码审查与质量检测，发现潜在Bug和安全风险",
+    "en": "e.g. Responsible for code review and quality checks, detecting bugs and security risks"
+  },
+  "skills.addForm.triggerLabel": {
+    "zh_TW": "觸發條件",
+    "zh_CN": "触发条件",
+    "en": "Trigger Condition"
+  },
+  "skills.addForm.triggerHint": {
+    "zh_TW": "(可選，何時激活此技能)",
+    "zh_CN": "(可选，何时激活此技能)",
+    "en": "(optional, when to activate)"
+  },
+  "skills.addForm.triggerPlaceholder": {
+    "zh_TW": "如：當任務涉及代碼質量、安全審查時激活",
+    "zh_CN": "如：当任务涉及代码质量、安全审查时激活",
+    "en": "e.g. Activate when task involves code quality or security review"
+  },
+  "skills.addForm.cancel": {
+    "zh_TW": "取消",
+    "zh_CN": "取消",
+    "en": "Cancel"
+  },
+  "skills.addForm.submit": {
+    "zh_TW": "📦 創建技能",
+    "zh_CN": "📦 创建技能",
+    "en": "📦 Create Skill"
+  },
+  "skills.addForm.creating": {
+    "zh_TW": "⟳ 創建中…",
+    "zh_CN": "⟳ 创建中…",
+    "en": "⟳ Creating..."
+  },
+  "skills.addForm.success": {
+    "zh_TW": "✅ 技能 {name} 已添加到 {agent}",
+    "zh_CN": "✅ 技能 {name} 已添加到 {agent}",
+    "en": "✅ Skill {name} added to {agent}"
+  },
+  "skills.addForm.fail": {
+    "zh_TW": "添加失敗",
+    "zh_CN": "添加失败",
+    "en": "Add failed"
+  },
+  "sessions.title": {
+    "zh_TW": "💬 小任務",
+    "zh_CN": "💬 小任务",
+    "en": "💬 Tasks"
+  },
+  "sessions.subtitle": {
+    "zh_TW": "飛書/Telegram 中的日常對話與小任務 · 非JJC聖旨類任務",
+    "zh_CN": "飞书/Telegram 中的日常对话与小任务 · 非JJC圣旨类任务",
+    "en": "Daily conversations and small tasks in Feishu/Telegram · Non-JJC edict tasks"
+  },
+  "sessions.filterLabel": {
+    "zh_TW": "篩選：",
+    "zh_CN": "筛选：",
+    "en": "Filter:"
+  },
+  "sessions.filterAll": {
+    "zh_TW": "全部",
+    "zh_CN": "全部",
+    "en": "All"
+  },
+  "sessions.filterActive": {
+    "zh_TW": "進行中",
+    "zh_CN": "进行中",
+    "en": "Active"
+  },
+  "sessions.empty": {
+    "zh_TW": "暫無小任務/會話數據",
+    "zh_CN": "暂无小任务/会话数据",
+    "en": "No small tasks/sessions data"
+  },
+  "sessions.channelFeishu": {
+    "zh_TW": "飛書對話",
+    "zh_CN": "飞书对话",
+    "en": "Feishu Chat"
+  },
+  "sessions.channelFeishuShort": {
+    "zh_TW": "飛書",
+    "zh_CN": "飞书",
+    "en": "Feishu"
+  },
+  "sessions.channelWecom": {
+    "zh_TW": "企業微信",
+    "zh_CN": "企业微信",
+    "en": "WeCom"
+  },
+  "sessions.channelTelegram": {
+    "zh_TW": "Telegram",
+    "zh_CN": "Telegram",
+    "en": "Telegram"
+  },
+  "sessions.channelDiscord": {
+    "zh_TW": "Discord",
+    "zh_CN": "Discord",
+    "en": "Discord"
+  },
+  "sessions.channelSlack": {
+    "zh_TW": "Slack",
+    "zh_CN": "Slack",
+    "en": "Slack"
+  },
+  "sessions.channelWebChat": {
+    "zh_TW": "WebChat",
+    "zh_CN": "WebChat",
+    "en": "WebChat"
+  },
+  "sessions.channelCron": {
+    "zh_TW": "定時",
+    "zh_CN": "定时",
+    "en": "Cron"
+  },
+  "sessions.channelDirect": {
+    "zh_TW": "直連",
+    "zh_CN": "直连",
+    "en": "Direct"
+  },
+  "sessions.channelSession": {
+    "zh_TW": "會話",
+    "zh_CN": "会话",
+    "en": "Session"
+  },
+  "sessions.heartbeat": {
+    "zh_TW": "💓 心跳檢測",
+    "zh_CN": "💓 心跳检测",
+    "en": "💓 Heartbeat"
+  },
+  "sessions.mainSession": {
+    "zh_TW": "{agent} · 主會話",
+    "zh_CN": "{agent} · 主会话",
+    "en": "{agent} · Main Session"
+  },
+  "sessions.subagentSession": {
+    "zh_TW": "{agent} · 子任務執行",
+    "zh_CN": "{agent} · 子任务执行",
+    "en": "{agent} · Sub-task"
+  },
+  "sessions.cronSession": {
+    "zh_TW": "{agent} · 定時任務",
+    "zh_CN": "{agent} · 定时任务",
+    "en": "{agent} · Cron Job"
+  },
+  "sessions.timeJustNow": {
+    "zh_TW": "剛剛",
+    "zh_CN": "刚刚",
+    "en": "Just now"
+  },
+  "sessions.timeMinutesAgo": {
+    "zh_TW": "分鐘前",
+    "zh_CN": "分钟前",
+    "en": "min ago"
+  },
+  "sessions.timeHoursAgo": {
+    "zh_TW": "小時前",
+    "zh_CN": "小时前",
+    "en": "hrs ago"
+  },
+  "sessions.timeDaysAgo": {
+    "zh_TW": "天前",
+    "zh_CN": "天前",
+    "en": "days ago"
+  },
+  "sessions.detail.noActivity": {
+    "zh_TW": "暫無活動記錄",
+    "zh_CN": "暂无活动记录",
+    "en": "No activity"
+  },
+  "sessions.detail.totalTokens": {
+    "zh_TW": "總 Tokens",
+    "zh_CN": "总 Tokens",
+    "en": "Total Tokens"
+  },
+  "sessions.detail.input": {
+    "zh_TW": "輸入",
+    "zh_CN": "输入",
+    "en": "Input"
+  },
+  "sessions.detail.output": {
+    "zh_TW": "輸出",
+    "zh_CN": "输出",
+    "en": "Output"
+  },
+  "sessions.detail.recentActivity": {
+    "zh_TW": "📋 最近活動",
+    "zh_CN": "📋 最近活动",
+    "en": "📋 Recent Activity"
+  },
+  "sessions.detail.entryReply": {
+    "zh_TW": "回復",
+    "zh_CN": "恢复",
+    "en": "Reply"
+  },
+  "sessions.detail.entryTool": {
+    "zh_TW": "工具",
+    "zh_CN": "工具",
+    "en": "Tool"
+  },
+  "sessions.detail.entryUser": {
+    "zh_TW": "用戶",
+    "zh_CN": "用户",
+    "en": "User"
+  },
+  "sessions.detail.entryEvent": {
+    "zh_TW": "事件",
+    "zh_CN": "事件",
+    "en": "Event"
+  },
+  "memorials.title": {
+    "zh_TW": "📜 奏摺閣 · 旨意存檔",
+    "zh_CN": "📜 奏折阁 · 旨意存档",
+    "en": "📜 Archives"
+  },
+  "memorials.subtitle": {
+    "zh_TW": "任務完成後自動生成奏摺，記錄從下旨到完成的完整過程",
+    "zh_CN": "任务完成后自动生成奏折，记录从下旨到完成的完整过程",
+    "en": "Auto-generated memorials after task completion, recording the full process from edict to delivery"
+  },
+  "memorials.filterDone": {
+    "zh_TW": "已完成",
+    "zh_CN": "已完成",
+    "en": "Completed"
+  },
+  "memorials.filterCancelled": {
+    "zh_TW": "已取消",
+    "zh_CN": "已取消",
+    "en": "Cancelled"
+  },
+  "memorials.empty": {
+    "zh_TW": "暫無奏摺 — 任務完成後自動生成",
+    "zh_CN": "暂无奏折 — 任务完成后自动生成",
+    "en": "No memorials — auto-generated after task completion"
+  },
+  "memorials.export": {
+    "zh_TW": "📋 複製奏摺",
+    "zh_CN": "📋 复制奏折",
+    "en": "📋 Copy Memorial"
+  },
+  "memorials.viewDoc": {
+    "zh_TW": "📖 查看奏章",
+    "zh_CN": "📖 查看奏章",
+    "en": "📖 View Memorial"
+  },
+  "memorials.outputNotExist": {
+    "zh_TW": "（產出物文件不存在或尚未生成）",
+    "zh_CN": "（产出物文件不存在或尚未生成）",
+    "en": "(Deliverable file does not exist or not yet generated)"
+  },
+  "memorials.outputLoading": {
+    "zh_TW": "加載中…",
+    "zh_CN": "加载中…",
+    "en": "Loading..."
+  },
+  "memorials.outputFail": {
+    "zh_TW": "加載失敗",
+    "zh_CN": "加载失败",
+    "en": "Load failed"
+  },
+  "memorials.outputServerFail": {
+    "zh_TW": "服務器連接失敗",
+    "zh_CN": "服务器连接失败",
+    "en": "Server connection failed"
+  },
+  "memorials.phaseEdict": {
+    "zh_TW": "聖旨原文",
+    "zh_CN": "圣旨原文",
+    "en": "Original Edict"
+  },
+  "memorials.phasePlan": {
+    "zh_TW": "中書規劃",
+    "zh_CN": "中书规划",
+    "en": "Secretariat Plan"
+  },
+  "memorials.phaseReview": {
+    "zh_TW": "門下審議",
+    "zh_CN": "门下审议",
+    "en": "Chancellery Review"
+  },
+  "memorials.phaseExecute": {
+    "zh_TW": "六部執行",
+    "zh_CN": "六部执行",
+    "en": "Ministries Execution"
+  },
+  "memorials.phaseResult": {
+    "zh_TW": "匯總回奏",
+    "zh_CN": "汇总回奏",
+    "en": "Summary Report"
+  },
+  "memorials.output": {
+    "zh_TW": "📦 產出物",
+    "zh_CN": "📦 产出物",
+    "en": "📦 Deliverable"
+  },
+  "memorials.copySuccess": {
+    "zh_TW": "✅ 奏摺已複製爲 Markdown",
+    "zh_CN": "✅ 奏折已复制为 Markdown",
+    "en": "✅ Memorial copied as Markdown"
+  },
+  "memorials.copyFail": {
+    "zh_TW": "複製失敗",
+    "zh_CN": "复制失败",
+    "en": "Copy failed"
+  },
+  "templates.title": {
+    "zh_TW": "📜 旨庫 · 聖旨模板",
+    "zh_CN": "📜 旨库 · 圣旨模板",
+    "en": "📜 Templates"
+  },
+  "templates.subtitle": {
+    "zh_TW": "選擇模板、填寫參數、一鍵下旨 — 降低使用門檻，快速啓動任務",
+    "zh_CN": "选择模板、填写参数、一键下旨 — 降低使用门槛，快速启动任务",
+    "en": "Select template, fill parameters, issue edict with one click — lower the barrier, quick start"
+  },
+  "templates.freeEdict": {
+    "zh_TW": "✍️ 自由下旨",
+    "zh_CN": "✍️ 自由下旨",
+    "en": "✍️ Free Edict"
+  },
+  "templates.freeEdictHint": {
+    "zh_TW": "無需模板，直接用自然語言描述你的需求，系統會自動派發給太子處理",
+    "zh_CN": "无需模板，直接用自然语言描述你的需求，系统会自动派发给太子处理",
+    "en": "No template needed. Describe your needs in natural language. The system auto-dispatches to the Crown Prince."
+  },
+  "templates.freeEdictPlaceholder": {
+    "zh_TW": "例如：幫我分析一下最近三個月的銷售數據趨勢，生成圖表和報告…",
+    "zh_CN": "例如：帮我分析一下最近三个月的销售数据趋势，生成图表和报告…",
+    "en": "e.g. Analyze sales data trends for the last 3 months, generate charts and reports..."
+  },
+  "templates.priorityNormal": {
+    "zh_TW": "普通優先級",
+    "zh_CN": "普通优先级",
+    "en": "Normal Priority"
+  },
+  "templates.priorityHigh": {
+    "zh_TW": "高優先級",
+    "zh_CN": "高优先级",
+    "en": "High Priority"
+  },
+  "templates.submit": {
+    "zh_TW": "📜 下旨",
+    "zh_CN": "📜 下旨",
+    "en": "📜 Issue Edict"
+  },
+  "templates.submitFree": {
+    "zh_TW": "📜 下旨",
+    "zh_CN": "📜 下旨",
+    "en": "📜 Issue"
+  },
+  "templates.preview": {
+    "zh_TW": "👁 預覽旨意",
+    "zh_CN": "👁 预览旨意",
+    "en": "👁 Preview Edict"
+  },
+  "templates.previewText": {
+    "zh_TW": "📜 將發送給中書省的旨意：",
+    "zh_CN": "📜 将发送给中书省的旨意：",
+    "en": "📜 Edict to be sent to the Secretariat:"
+  },
+  "templates.confirmSubmit": {
+    "zh_TW": "確認下旨？",
+    "zh_CN": "确认下旨？",
+    "en": "Confirm issue?"
+  },
+  "templates.success": {
+    "zh_TW": "📜 {id} 旨意已下達",
+    "zh_CN": "📜 {id} 旨意已下达",
+    "en": "📜 {id} Edict issued"
+  },
+  "templates.fail": {
+    "zh_TW": "下旨失敗",
+    "zh_CN": "下旨失败",
+    "en": "Edict issuance failed"
+  },
+  "templates.fillRequired": {
+    "zh_TW": "請填寫必填參數",
+    "zh_CN": "请填写必填参数",
+    "en": "Please fill in required parameters"
+  },
+  "templates.gatewayWarning": {
+    "zh_TW": "⚠️ Gateway 未啓動，任務將無法派發！請先運行 openclaw gateway start",
+    "zh_CN": "⚠️ Gateway 未启动，任务将无法派发！请先运行 openclaw gateway start",
+    "en": "⚠️ Gateway not running, tasks cannot be dispatched! Please run: openclaw gateway start"
+  },
+  "templates.serverFailClipboard": {
+    "zh_TW": "⚠️ 服務器連接失敗，已複製到剪貼板",
+    "zh_CN": "⚠️ 服务器连接失败，已复制到剪贴板",
+    "en": "⚠️ Server connection failed, copied to clipboard"
+  },
+  "templates.catAll": {
+    "zh_TW": "全部",
+    "zh_CN": "全部",
+    "en": "All"
+  },
+  "templates.catOffice": {
+    "zh_TW": "日常辦公",
+    "zh_CN": "日常办公",
+    "en": "Office"
+  },
+  "templates.catData": {
+    "zh_TW": "數據分析",
+    "zh_CN": "数据分析",
+    "en": "Data Analysis"
+  },
+  "templates.catEngineering": {
+    "zh_TW": "工程開發",
+    "zh_CN": "工程开发",
+    "en": "Engineering"
+  },
+  "templates.catContent": {
+    "zh_TW": "內容創作",
+    "zh_CN": "内容创作",
+    "en": "Content"
+  },
+  "morning.title": {
+    "zh_TW": "📰 天下要聞 · 御覽",
+    "zh_CN": "📰 天下要闻 · 御览",
+    "en": "📰 Briefing"
+  },
+  "morning.loading": {
+    "zh_TW": "加載中…",
+    "zh_CN": "加载中…",
+    "en": "Loading..."
+  },
+  "morning.loadingNews": {
+    "zh_TW": "⟳ 加載要聞中…",
+    "zh_CN": "⟳ 加载要闻中…",
+    "en": "⟳ Loading briefing..."
+  },
+  "morning.noData": {
+    "zh_TW": "⚠️ 暫無數據，請點擊「立即採集」",
+    "zh_CN": "⚠️ 暂无数据，请点击「立即采集」",
+    "en": "⚠️ No data, click \"Collect Now\""
+  },
+  "morning.noDataHint": {
+    "zh_TW": "暫無數據，點擊右上角「立即採集」獲取今日簡報",
+    "zh_CN": "暂无数据，点击右上角「立即采集」获取今日简报",
+    "en": "No data, click \"Collect Now\" at top right to fetch today's briefing"
+  },
+  "morning.categoryEmpty": {
+    "zh_TW": "暫無新聞",
+    "zh_CN": "暂无新闻",
+    "en": "No news"
+  },
+  "morning.subscription": {
+    "zh_TW": "⚙ 訂閱管理",
+    "zh_CN": "⚙ 订阅管理",
+    "en": "⚙ Subscription"
+  },
+  "morning.refresh": {
+    "zh_TW": "⟳ 立即採集",
+    "zh_CN": "⟳ 立即采集",
+    "en": "⟳ Collect Now"
+  },
+  "morning.collecting": {
+    "zh_TW": "⟳ 採集中…",
+    "zh_CN": "⟳ 采集中…",
+    "en": "⟳ Collecting..."
+  },
+  "morning.updated": {
+    "zh_TW": "✅ 天下要聞已更新",
+    "zh_CN": "✅ 天下要闻已更新",
+    "en": "✅ Briefing updated"
+  },
+  "morning.collectFail": {
+    "zh_TW": "觸發失敗",
+    "zh_CN": "触发失败",
+    "en": "Collection trigger failed"
+  },
+  "morning.collectTimeout": {
+    "zh_TW": "採集超時，請重試",
+    "zh_CN": "采集超时，请重试",
+    "en": "Collection timed out, please retry"
+  },
+  "morning.dateFormat": {
+    "zh_TW": "{Y}年{M}月{D}日",
+    "zh_CN": "{Y}年{M}月{D}日",
+    "en": "{M}/{D}/{Y}"
+  },
+  "morning.badgeFocus": {
+    "zh_TW": "⭐ 關注",
+    "zh_CN": "⭐ 关注",
+    "en": "⭐ Focus"
+  },
+  "morning.countItems": {
+    "zh_TW": "條",
+    "zh_CN": "条",
+    "en": "items"
+  },
+  "morning.metaCollectedAt": {
+    "zh_TW": "採集於",
+    "zh_CN": "采集于",
+    "en": "Collected at"
+  },
+  "morning.metaTotal": {
+    "zh_TW": "條要聞",
+    "zh_CN": "条要闻",
+    "en": "items"
+  },
+  "subscription.title": {
+    "zh_TW": "📂 新聞分類",
+    "zh_CN": "📂 新闻分类",
+    "en": "📂 News Categories"
+  },
+  "subscription.catHint": {
+    "zh_TW": "— 勾選啓用，取消禁用",
+    "zh_CN": "— 勾选启用，取消禁用",
+    "en": "— Check to enable, uncheck to disable"
+  },
+  "subscription.keywords": {
+    "zh_TW": "🔑 自定義關注詞",
+    "zh_CN": "🔑 自定义关注词",
+    "en": "🔑 Custom Keywords"
+  },
+  "subscription.keywordsHint": {
+    "zh_TW": "— 額外關鍵詞過濾",
+    "zh_CN": "— 额外关键词过滤",
+    "en": "— Additional keyword filters"
+  },
+  "subscription.keywordsPlaceholder": {
+    "zh_TW": "輸入關鍵詞，如：芯片、SpaceX…",
+    "zh_CN": "输入关键词，如：芯片、SpaceX…",
+    "en": "Enter keywords, e.g. chips, SpaceX..."
+  },
+  "subscription.addKeyword": {
+    "zh_TW": "添加",
+    "zh_CN": "添加",
+    "en": "Add"
+  },
+  "subscription.rssTitle": {
+    "zh_TW": "📡 自定義 RSS 源",
+    "zh_CN": "📡 自定义 RSS 源",
+    "en": "📡 Custom RSS Feeds"
+  },
+  "subscription.rssNamePlaceholder": {
+    "zh_TW": "源名稱",
+    "zh_CN": "源名称",
+    "en": "Feed Name"
+  },
+  "subscription.rssUrlPlaceholder": {
+    "zh_TW": "RSS URL",
+    "zh_CN": "RSS URL",
+    "en": "RSS URL"
+  },
+  "subscription.noFeeds": {
+    "zh_TW": "暫無自定義源",
+    "zh_CN": "暂无自定义源",
+    "en": "No custom feeds"
+  },
+  "subscription.notificationTitle": {
+    "zh_TW": "🔔 消息推送",
+    "zh_CN": "🔔 消息推送",
+    "en": "🔔 Notifications"
+  },
+  "subscription.notificationEnabled": {
+    "zh_TW": "啓用推送",
+    "zh_CN": "启用推送",
+    "en": "Enable Push"
+  },
+  "subscription.webhookPlaceholder": {
+    "zh_TW": "Webhook URL（留空則不推送）",
+    "zh_CN": "Webhook URL（留空则不推送）",
+    "en": "Webhook URL (leave empty to disable)"
+  },
+  "subscription.save": {
+    "zh_TW": "保存全部配置",
+    "zh_CN": "保存全部配置",
+    "en": "Save All Settings"
+  },
+  "subscription.saveNote": {
+    "zh_TW": "採集完成後自動推送簡報鏈接到對應渠道。",
+    "zh_CN": "采集完成后自动推送简报链接到对应渠道。",
+    "en": "After collection, auto-push briefing link to the corresponding channel."
+  },
+  "subscription.saving": {
+    "zh_TW": "⟳ 保存中…",
+    "zh_CN": "⟳ 保存中…",
+    "en": "⟳ Saving..."
+  },
+  "subscription.saved": {
+    "zh_TW": "✅ 配置已保存",
+    "zh_CN": "✅ 配置已保存",
+    "en": "✅ Settings saved"
+  },
+  "subscription.saveFail": {
+    "zh_TW": "❌ 保存失敗",
+    "zh_CN": "❌ 保存失败",
+    "en": "❌ Save failed"
+  },
+  "subscription.serverFail": {
+    "zh_TW": "❌ 服務器連接失敗",
+    "zh_CN": "❌ 服务器连接失败",
+    "en": "❌ Server connection failed"
+  },
+  "subscription.channelFeishu": {
+    "zh_TW": "💬 飛書 Feishu",
+    "zh_CN": "💬 飞书 Feishu",
+    "en": "💬 Feishu"
+  },
+  "subscription.channelWecom": {
+    "zh_TW": "📱 企業微信",
+    "zh_CN": "📱 企业微信",
+    "en": "📱 WeCom"
+  },
+  "subscription.channelTelegram": {
+    "zh_TW": "✈️ Telegram",
+    "zh_CN": "✈️ Telegram",
+    "en": "✈️ Telegram"
+  },
+  "subscription.channelDiscord": {
+    "zh_TW": "🎮 Discord",
+    "zh_CN": "🎮 Discord",
+    "en": "🎮 Discord"
+  },
+  "subscription.channelSlack": {
+    "zh_TW": "💬 Slack",
+    "zh_CN": "💬 Slack",
+    "en": "💬 Slack"
+  },
+  "subscription.channelWebhook": {
+    "zh_TW": "🔗 通用 Webhook",
+    "zh_CN": "🔗 通用 Webhook",
+    "en": "🔗 Generic Webhook"
+  },
+  "modal.close": {
+    "zh_TW": "✕",
+    "zh_CN": "✕",
+    "en": "✕"
+  },
+  "modal.taskActions": {
+    "zh_TW": "⏸ 叫停任務",
+    "zh_CN": "⏸ 叫停任务",
+    "en": "⏸ Stop Task"
+  },
+  "modal.taskCancel": {
+    "zh_TW": "🚫 取消任務",
+    "zh_CN": "🚫 取消任务",
+    "en": "🚫 Cancel Task"
+  },
+  "modal.taskResume": {
+    "zh_TW": "▶️ 恢復執行",
+    "zh_CN": "▶️ 恢复执行",
+    "en": "▶️ Resume"
+  },
+  "modal.taskApprove": {
+    "zh_TW": "✅ 準奏",
+    "zh_CN": "✅ 准奏",
+    "en": "✅ Approve"
+  },
+  "modal.taskReject": {
+    "zh_TW": "🚫 封駁",
+    "zh_CN": "🚫 封驳",
+    "en": "🚫 Reject"
+  },
+  "modal.taskAdvance": {
+    "zh_TW": "⏩ 推進到下一步",
+    "zh_CN": "⏩ 推进到下一步",
+    "en": "⏩ Advance to Next"
+  },
+  "modal.currentStage": {
+    "zh_TW": "當前階段：",
+    "zh_CN": "当前阶段：",
+    "en": "Current Stage:"
+  },
+  "modal.schedulerTitle": {
+    "zh_TW": "🧭 太子調度",
+    "zh_CN": "🧭 太子调度",
+    "en": "🧭 Prince Scheduler"
+  },
+  "modal.schedulerLoading": {
+    "zh_TW": "加載中...",
+    "zh_CN": "加载中...",
+    "en": "Loading..."
+  },
+  "modal.schedulerFail": {
+    "zh_TW": "加載失敗",
+    "zh_CN": "加载失败",
+    "en": "Load failed"
+  },
+  "modal.schedulerNoData": {
+    "zh_TW": "無調度數據",
+    "zh_CN": "无调度数据",
+    "en": "No scheduler data"
+  },
+  "modal.schedulerStalled": {
+    "zh_TW": "停滯時長",
+    "zh_CN": "停滞时长",
+    "en": "Stalled Duration"
+  },
+  "modal.schedulerRetryCount": {
+    "zh_TW": "重試次數",
+    "zh_CN": "重试次数",
+    "en": "Retry Count"
+  },
+  "modal.schedulerEscalation": {
+    "zh_TW": "升級級別",
+    "zh_CN": "升级级别",
+    "en": "Escalation Level"
+  },
+  "modal.schedulerDispatch": {
+    "zh_TW": "派發狀態",
+    "zh_CN": "派发状态",
+    "en": "Dispatch Status"
+  },
+  "modal.schedulerRetry": {
+    "zh_TW": "🔁 重試派發",
+    "zh_CN": "🔁 重试派发",
+    "en": "🔁 Retry Dispatch"
+  },
+  "modal.schedulerEscalate": {
+    "zh_TW": "📣 升級協調",
+    "zh_CN": "📣 升级协调",
+    "en": "📣 Escalate"
+  },
+  "modal.schedulerRollback": {
+    "zh_TW": "↩️ 回滾穩定點",
+    "zh_CN": "↩️ 回滚稳定点",
+    "en": "↩️ Rollback to Stable"
+  },
+  "modal.schedulerScan": {
+    "zh_TW": "🔍 立即掃描",
+    "zh_CN": "🔍 立即扫描",
+    "en": "🔍 Scan Now"
+  },
+  "modal.schedulerDisabled": {
+    "zh_TW": "已禁用",
+    "zh_CN": "已禁用",
+    "en": "Disabled"
+  },
+  "modal.schedulerRunning": {
+    "zh_TW": "運行中",
+    "zh_CN": "运行中",
+    "en": "Running"
+  },
+  "modal.schedulerThreshold": {
+    "zh_TW": "閾值",
+    "zh_CN": "阈值",
+    "en": "Threshold"
+  },
+  "modal.schedulerRecentProgress": {
+    "zh_TW": "最近進展",
+    "zh_CN": "最近进展",
+    "en": "Recent Progress"
+  },
+  "modal.schedulerRecentDispatch": {
+    "zh_TW": "最近派發",
+    "zh_CN": "最近派发",
+    "en": "Recent Dispatch"
+  },
+  "modal.schedulerAutoRollback": {
+    "zh_TW": "自動回滾",
+    "zh_CN": "自动回滚",
+    "en": "Auto Rollback"
+  },
+  "modal.schedulerRollbackOn": {
+    "zh_TW": "開啓",
+    "zh_CN": "开启",
+    "en": "On"
+  },
+  "modal.schedulerRollbackOff": {
+    "zh_TW": "關閉",
+    "zh_CN": "关闭",
+    "en": "Off"
+  },
+  "modal.schedulerTarget": {
+    "zh_TW": "目標",
+    "zh_CN": "目标",
+    "en": "Target"
+  },
+  "modal.todoSection": {
+    "zh_TW": "子任務清單（{done}/{total}）",
+    "zh_CN": "子任务清单（{done}/{total}）",
+    "en": "Subtasks ({done}/{total})"
+  },
+  "modal.todoDone": {
+    "zh_TW": "已完成",
+    "zh_CN": "已完成",
+    "en": "Completed"
+  },
+  "modal.todoInProgress": {
+    "zh_TW": "進行中",
+    "zh_CN": "进行中",
+    "en": "In Progress"
+  },
+  "modal.todoPending": {
+    "zh_TW": "待開始",
+    "zh_CN": "待开始",
+    "en": "Pending"
+  },
+  "modal.status": {
+    "zh_TW": "狀態",
+    "zh_CN": "状态",
+    "en": "Status"
+  },
+  "modal.dept": {
+    "zh_TW": "執行部門",
+    "zh_CN": "执行部门",
+    "en": "Department"
+  },
+  "modal.eta": {
+    "zh_TW": "預計完成",
+    "zh_CN": "预计完成",
+    "en": "ETA"
+  },
+  "modal.block": {
+    "zh_TW": "阻塞項",
+    "zh_CN": "阻塞项",
+    "en": "Blocker"
+  },
+  "modal.progress": {
+    "zh_TW": "當前進展",
+    "zh_CN": "当前进展",
+    "en": "Current Progress"
+  },
+  "modal.acceptance": {
+    "zh_TW": "驗收標準",
+    "zh_CN": "验收标准",
+    "en": "Acceptance Criteria"
+  },
+  "modal.flowLog": {
+    "zh_TW": "流轉日誌（{n} 條）",
+    "zh_CN": "流转日志（{n} 条）",
+    "en": "Flow Log ({n} entries)"
+  },
+  "modal.flowEmpty": {
+    "zh_TW": "暫無流轉記錄（任務啓動後自動填充）",
+    "zh_CN": "暂无流转记录（任务启动后自动填充）",
+    "en": "No flow records (auto-populated when task starts)"
+  },
+  "modal.reviewRounds": {
+    "zh_TW": "共磋商 {n} 輪",
+    "zh_CN": "共磋商 {n} 轮",
+    "en": "{n} review rounds"
+  },
+  "modal.output": {
+    "zh_TW": "產出物",
+    "zh_CN": "产出物",
+    "en": "Deliverable"
+  },
+  "modal.liveActivityTitle": {
+    "zh_TW": "實時動態",
+    "zh_CN": "实时动态",
+    "en": "Live Activity"
+  },
+  "modal.liveHistoryTitle": {
+    "zh_TW": "執行回顧",
+    "zh_CN": "执行回顾",
+    "en": "Execution History"
+  },
+  "modal.liveFetching": {
+    "zh_TW": "正在獲取 Agent 活動數據...",
+    "zh_CN": "正在获取 Agent 活动数据...",
+    "en": "Fetching agent activity data..."
+  },
+  "modal.liveFetchFail": {
+    "zh_TW": "獲取活動數據失敗",
+    "zh_CN": "获取活动数据失败",
+    "en": "Failed to fetch activity data"
+  },
+  "modal.liveNoProgress": {
+    "zh_TW": "Agent 尚未上報進展（等待 Agent 調用 progress 命令）",
+    "zh_CN": "Agent 尚未上报进展（等待 Agent 调用 progress 命令）",
+    "en": "Agent has not reported progress yet (waiting for agent progress command)"
+  },
+  "modal.liveNoAgent": {
+    "zh_TW": "無對應 Agent",
+    "zh_CN": "无对应 Agent",
+    "en": "No matching agent"
+  },
+  "modal.liveSearchRange": {
+    "zh_TW": "搜索範圍:",
+    "zh_CN": "搜索范围:",
+    "en": "Search Range:"
+  },
+  "modal.liveNthAgent": {
+    "zh_TW": "個 Agent",
+    "zh_CN": "个 Agent",
+    "en": "agents"
+  },
+  "modal.liveLastActive": {
+    "zh_TW": "最後活躍:",
+    "zh_CN": "最后活跃:",
+    "en": "Last Active:"
+  },
+  "modal.livePhaseTitle": {
+    "zh_TW": "⏱ 階段耗時",
+    "zh_CN": "⏱ 阶段耗时",
+    "en": "⏱ Phase Duration"
+  },
+  "modal.livePhaseTotal": {
+    "zh_TW": "總耗時",
+    "zh_CN": "总耗时",
+    "en": "Total Duration"
+  },
+  "modal.livePhaseOngoing": {
+    "zh_TW": "●進行中",
+    "zh_CN": "●进行中",
+    "en": "●In Progress"
+  },
+  "modal.livePlanTitle": {
+    "zh_TW": "📝 執行計劃",
+    "zh_CN": "📝 执行计划",
+    "en": "📝 Execution Plan"
+  },
+  "modal.liveNewBadge": {
+    "zh_TW": "🆕新增",
+    "zh_CN": "🆕新增",
+    "en": "🆕New"
+  },
+  "modal.liveDoneBadge": {
+    "zh_TW": "✨剛完成",
+    "zh_CN": "✨刚完成",
+    "en": "✨Just Done"
+  },
+  "modal.liveProgressTitle": {
+    "zh_TW": "📊 執行進度",
+    "zh_CN": "📊 执行进度",
+    "en": "📊 Progress"
+  },
+  "modal.liveResourceTitle": {
+    "zh_TW": "📈 資源消耗",
+    "zh_CN": "📈 资源消耗",
+    "en": "📈 Resource Usage"
+  },
+  "modal.liveEmpty": {
+    "zh_TW": "暫無此任務的對話記錄",
+    "zh_CN": "暂无此任务的对话记录",
+    "en": "No conversation records for this task"
+  },
+  "modal.liveUnknown": {
+    "zh_TW": "未標識",
+    "zh_CN": "未标识",
+    "en": "Unidentified"
+  },
+  "modal.liveCurrentProgress": {
+    "zh_TW": "當前進展：",
+    "zh_CN": "当前进展：",
+    "en": "Current Progress:"
+  },
+  "confirm.titleStop": {
+    "zh_TW": "⏸ 叫停任務",
+    "zh_CN": "⏸ 叫停任务",
+    "en": "⏸ Stop Task"
+  },
+  "confirm.titleCancel": {
+    "zh_TW": "🚫 取消任務",
+    "zh_CN": "🚫 取消任务",
+    "en": "🚫 Cancel Task"
+  },
+  "confirm.msgStop": {
+    "zh_TW": "確定要叫停 {id} 嗎？任務將暫停，可稍後恢復。",
+    "zh_CN": "确定要叫停 {id} 吗？任务将暂停，可稍后恢复。",
+    "en": "Confirm stopping {id}? The task will be paused and can be resumed later."
+  },
+  "confirm.msgCancel": {
+    "zh_TW": "確定要取消 {id} 嗎？任務將標記爲已取消。",
+    "zh_CN": "确定要取消 {id} 吗？任务将标记为已取消。",
+    "en": "Confirm cancelling {id}? The task will be marked as cancelled."
+  },
+  "confirm.reasonPlaceholder": {
+    "zh_TW": "原因（可選）",
+    "zh_CN": "原因（可选）",
+    "en": "Reason (optional)"
+  },
+  "confirm.cancel": {
+    "zh_TW": "取消",
+    "zh_CN": "取消",
+    "en": "Cancel"
+  },
+  "confirm.ok": {
+    "zh_TW": "確認",
+    "zh_CN": "确认",
+    "en": "Confirm"
+  },
+  "confirm.okStop": {
+    "zh_TW": "確認叫停",
+    "zh_CN": "确认叫停",
+    "en": "Confirm Stop"
+  },
+  "confirm.okCancel": {
+    "zh_TW": "確認取消",
+    "zh_CN": "确认取消",
+    "en": "Confirm Cancel"
+  },
+  "review.approve": {
+    "zh_TW": "準奏",
+    "zh_CN": "准奏",
+    "en": "Approve"
+  },
+  "review.reject": {
+    "zh_TW": "封駁",
+    "zh_CN": "封驳",
+    "en": "Reject"
+  },
+  "review.success": {
+    "zh_TW": "✅ {id} 已{action}",
+    "zh_CN": "✅ {id} 已{action}",
+    "en": "✅ {id} {action}"
+  },
+  "advance.nextZhongshu": {
+    "zh_TW": "中書省起草",
+    "zh_CN": "中书省起草",
+    "en": "Draft in Secretariat"
+  },
+  "advance.nextMenxia": {
+    "zh_TW": "門下省審議",
+    "zh_CN": "门下省审议",
+    "en": "Review in Chancellery"
+  },
+  "advance.nextShangshu": {
+    "zh_TW": "尚書省派發",
+    "zh_CN": "尚书省派发",
+    "en": "Dispatch from State Dept."
+  },
+  "advance.nextDoing": {
+    "zh_TW": "開始執行",
+    "zh_CN": "开始执行",
+    "en": "Begin Execution"
+  },
+  "advance.nextReview": {
+    "zh_TW": "進入審查",
+    "zh_CN": "进入审查",
+    "en": "Enter Review"
+  },
+  "advance.nextDone": {
+    "zh_TW": "完成",
+    "zh_CN": "完成",
+    "en": "Complete"
+  },
+  "advance.nextDefault": {
+    "zh_TW": "下一步",
+    "zh_CN": "下一步",
+    "en": "Next Step"
+  },
+  "archive.toastArchived": {
+    "zh_TW": "📦 {id} 已歸檔",
+    "zh_CN": "📦 {id} 已归档",
+    "en": "📦 {id} archived"
+  },
+  "archive.toastUnarchived": {
+    "zh_TW": "📤 {id} 已取消歸檔",
+    "zh_CN": "📤 {id} 已取消归档",
+    "en": "📤 {id} unarchived"
+  },
+  "archive.toastBatch": {
+    "zh_TW": "📦 {n} 道旨意已歸檔",
+    "zh_CN": "📦 {n} 道旨意已归档",
+    "en": "📦 {n} edicts archived"
+  },
+  "archive.confirmBatch": {
+    "zh_TW": "將所有已完成/已取消的旨意移入歸檔？",
+    "zh_CN": "将所有已完成/已取消的旨意移入归档？",
+    "en": "Archive all completed/cancelled edicts?"
+  },
+  "archive.fail": {
+    "zh_TW": "歸檔失敗",
+    "zh_CN": "归档失败",
+    "en": "Archive failed"
+  },
+  "archive.unarchiveFail": {
+    "zh_TW": "取消歸檔失敗",
+    "zh_CN": "取消归档失败",
+    "en": "Unarchive failed"
+  },
+  "archive.batchFail": {
+    "zh_TW": "批量歸檔失敗",
+    "zh_CN": "批量归档失败",
+    "en": "Batch archive failed"
+  },
+  "scan.scanning": {
+    "zh_TW": "⟳ 巡檢中...",
+    "zh_CN": "⟳ 巡检中...",
+    "en": "⟳ Inspecting..."
+  },
+  "scan.running": {
+    "zh_TW": "巡檢中...",
+    "zh_CN": "巡检中...",
+    "en": "Inspecting..."
+  },
+  "scan.done": {
+    "zh_TW": "🧭 太子巡檢完成：{n} 個動作",
+    "zh_CN": "🧭 太子巡检完成：{n} 个动作",
+    "en": "🧭 Prince Inspection complete: {n} actions"
+  },
+  "scan.fail": {
+    "zh_TW": "巡檢失敗",
+    "zh_CN": "巡检失败",
+    "en": "Inspection failed"
+  },
+  "scan.detailRetry": {
+    "zh_TW": "重試",
+    "zh_CN": "重试",
+    "en": "Retry"
+  },
+  "scan.detailEscalate": {
+    "zh_TW": "升級",
+    "zh_CN": "升级",
+    "en": "Escalate"
+  },
+  "scan.detailRollback": {
+    "zh_TW": "回滾",
+    "zh_CN": "回滚",
+    "en": "Rollback"
+  },
+  "scan.detailAction": {
+    "zh_TW": "動作",
+    "zh_CN": "动作",
+    "en": "Action"
+  },
+  "scan.detailNoMeta": {
+    "zh_TW": "無附加信息",
+    "zh_CN": "无附加信息",
+    "en": "No additional info"
+  },
+  "scan.detailHidden": {
+    "zh_TW": "另有 {n} 條動作未展示",
+    "zh_CN": "另有 {n} 条动作未展示",
+    "en": "{n} more actions hidden"
+  },
+  "scan.reportTitle": {
+    "zh_TW": "【太子巡檢報告】",
+    "zh_CN": "【太子巡检报告】",
+    "en": "Inspection Report"
+  },
+  "scan.copied": {
+    "zh_TW": "📋 巡檢報告已複製",
+    "zh_CN": "📋 巡检报告已复制",
+    "en": "📋 Inspection report copied"
+  },
+  "scan.copyFail": {
+    "zh_TW": "複製失敗，請手動複製",
+    "zh_CN": "复制失败，请手动复制",
+    "en": "Copy failed, please copy manually"
+  },
+  "agent.statusTitle": {
+    "zh_TW": "🔌 Agent 在線狀態",
+    "zh_CN": "🔌 Agent 在线状态",
+    "en": "Agent Status"
+  },
+  "agent.gatewayUnknown": {
+    "zh_TW": "未知",
+    "zh_CN": "未知",
+    "en": "Unknown"
+  },
+  "agent.refresh": {
+    "zh_TW": "🔄 刷新",
+    "zh_CN": "🔄 刷新",
+    "en": "Refresh"
+  },
+  "agent.wakeAll": {
+    "zh_TW": "⚡ 全部喚醒",
+    "zh_CN": "⚡ 全部唤醒",
+    "en": "Wake All"
+  },
+  "agent.wake": {
+    "zh_TW": "⚡ 喚醒",
+    "zh_CN": "⚡ 唤醒",
+    "en": "Wake"
+  },
+  "agent.waking": {
+    "zh_TW": "⏳ 喚醒中...",
+    "zh_CN": "⏳ 唤醒中...",
+    "en": "⏳ Waking..."
+  },
+  "agent.wakeSent": {
+    "zh_TW": "喚醒指令已發出",
+    "zh_CN": "唤醒指令已发出",
+    "en": "Wake command sent"
+  },
+  "agent.wakeFailed": {
+    "zh_TW": "喚醒失敗:",
+    "zh_CN": "唤醒失败:",
+    "en": "Wake failed:"
+  },
+  "agent.noActivity": {
+    "zh_TW": "無活動記錄",
+    "zh_CN": "无活动记录",
+    "en": "No activity"
+  },
+  "agent.summaryRunning": {
+    "zh_TW": "運行中",
+    "zh_CN": "运行中",
+    "en": "Running"
+  },
+  "agent.summaryIdle": {
+    "zh_TW": "待命",
+    "zh_CN": "待命",
+    "en": "Standby"
+  },
+  "agent.summaryOffline": {
+    "zh_TW": "離線",
+    "zh_CN": "离线",
+    "en": "Offline"
+  },
+  "agent.summaryUnconfigured": {
+    "zh_TW": "未配置",
+    "zh_CN": "未配置",
+    "en": "Unconfigured"
+  },
+  "agent.summaryCheckedAt": {
+    "zh_TW": "檢測於",
+    "zh_CN": "检测于",
+    "en": "Checked at"
+  },
+  "agent.loadError": {
+    "zh_TW": "⚠️ 無法獲取 Agent 狀態",
+    "zh_CN": "⚠️ 无法获取 Agent 状态",
+    "en": "⚠️ Unable to fetch agent status"
+  },
+  "agent.wakeAllOnline": {
+    "zh_TW": "所有 Agent 均已在線",
+    "zh_CN": "所有 Agent 均已在线",
+    "en": "All agents already online"
+  },
+  "agent.wakeAllWaking": {
+    "zh_TW": "正在喚醒 {n} 個 Agent...",
+    "zh_CN": "正在唤醒 {n} 个 Agent...",
+    "en": "Waking {n} agents..."
+  },
+  "agent.wakeAllDone": {
+    "zh_TW": "{n} 個喚醒指令已發出，30秒後刷新狀態",
+    "zh_CN": "{n} 个唤醒指令已发出，30秒后刷新状态",
+    "en": "{n} wake commands sent, refresh in 30s"
+  },
+  "pipeline.inbox": {
+    "zh_TW": "下旨",
+    "zh_CN": "下旨",
+    "en": "Edict Received"
+  },
+  "pipeline.taizi": {
+    "zh_TW": "分揀",
+    "zh_CN": "分拣",
+    "en": "Sorted"
+  },
+  "pipeline.zhongshu": {
+    "zh_TW": "起草",
+    "zh_CN": "起草",
+    "en": "Drafted"
+  },
+  "pipeline.menxia": {
+    "zh_TW": "審議",
+    "zh_CN": "审议",
+    "en": "Reviewed"
+  },
+  "pipeline.assigned": {
+    "zh_TW": "派發",
+    "zh_CN": "派发",
+    "en": "Dispatched"
+  },
+  "pipeline.doing": {
+    "zh_TW": "執行",
+    "zh_CN": "执行",
+    "en": "Executing"
+  },
+  "pipeline.review": {
+    "zh_TW": "匯總",
+    "zh_CN": "汇总",
+    "en": "Summary"
+  },
+  "pipeline.done": {
+    "zh_TW": "完成",
+    "zh_CN": "完成",
+    "en": "Complete"
+  },
+  "pipeline.deptEmperor": {
+    "zh_TW": "皇上",
+    "zh_CN": "皇上",
+    "en": "Emperor"
+  },
+  "pipeline.deptTaizi": {
+    "zh_TW": "太子",
+    "zh_CN": "太子",
+    "en": "Crown Prince"
+  },
+  "pipeline.deptZhongshu": {
+    "zh_TW": "中書省",
+    "zh_CN": "中书省",
+    "en": "Secretariat"
+  },
+  "pipeline.deptMenxia": {
+    "zh_TW": "門下省",
+    "zh_CN": "门下省",
+    "en": "Chancellery"
+  },
+  "pipeline.deptShangshu": {
+    "zh_TW": "尚書省",
+    "zh_CN": "尚书省",
+    "en": "Dept. of State"
+  },
+  "pipeline.deptSixMinistries": {
+    "zh_TW": "六部",
+    "zh_CN": "六部",
+    "en": "Six Ministries"
+  },
+  "pipeline.deptResult": {
+    "zh_TW": "回奏",
+    "zh_CN": "回奏",
+    "en": "Report Back"
+  },
+  "state.inbox": {
+    "zh_TW": "收件",
+    "zh_CN": "收件",
+    "en": "Inbox"
+  },
+  "state.pending": {
+    "zh_TW": "待處理",
+    "zh_CN": "待处理",
+    "en": "Pending"
+  },
+  "state.taizi": {
+    "zh_TW": "太子分揀",
+    "zh_CN": "太子分拣",
+    "en": "Prince Sorting"
+  },
+  "state.zhongshu": {
+    "zh_TW": "中書起草",
+    "zh_CN": "中书起草",
+    "en": "Secretariat Drafting"
+  },
+  "state.menxiaReview": {
+    "zh_TW": "門下審議（第{n}輪）",
+    "zh_CN": "门下审议（第{n}轮）",
+    "en": "Chancellery Review (Round {n})"
+  },
+  "state.zhongshuRevise": {
+    "zh_TW": "中書修訂（第{n}輪）",
+    "zh_CN": "中书修订（第{n}轮）",
+    "en": "Secretariat Revision (Round {n})"
+  },
+  "state.menxia": {
+    "zh_TW": "門下審議",
+    "zh_CN": "门下审议",
+    "en": "Chancellery Review"
+  },
+  "state.assigned": {
+    "zh_TW": "已派發",
+    "zh_CN": "已派发",
+    "en": "Assigned"
+  },
+  "state.doing": {
+    "zh_TW": "執行中",
+    "zh_CN": "执行中",
+    "en": "In Progress"
+  },
+  "state.review": {
+    "zh_TW": "待審查",
+    "zh_CN": "待审查",
+    "en": "Pending Review"
+  },
+  "state.done": {
+    "zh_TW": "已完成",
+    "zh_CN": "已完成",
+    "en": "Done"
+  },
+  "state.blocked": {
+    "zh_TW": "阻塞",
+    "zh_CN": "阻塞",
+    "en": "Blocked"
+  },
+  "state.cancelled": {
+    "zh_TW": "已取消",
+    "zh_CN": "已取消",
+    "en": "Cancelled"
+  },
+  "state.next": {
+    "zh_TW": "待執行",
+    "zh_CN": "待执行",
+    "en": "Pending"
+  },
+  "dept.taizi": {
+    "zh_TW": "太子",
+    "zh_CN": "太子",
+    "en": "Crown Prince"
+  },
+  "dept.taiziRole": {
+    "zh_TW": "太子",
+    "zh_CN": "太子",
+    "en": "Crown Prince"
+  },
+  "dept.taiziRank": {
+    "zh_TW": "儲君",
+    "zh_CN": "储君",
+    "en": "Heir Apparent"
+  },
+  "dept.zhongshu": {
+    "zh_TW": "中書省",
+    "zh_CN": "中书省",
+    "en": "Secretariat"
+  },
+  "dept.zhongshuRole": {
+    "zh_TW": "中書令",
+    "zh_CN": "中书令",
+    "en": "Grand Chancellor"
+  },
+  "dept.zhongshuRank": {
+    "zh_TW": "正一品",
+    "zh_CN": "正一品",
+    "en": "First Rank"
+  },
+  "dept.menxia": {
+    "zh_TW": "門下省",
+    "zh_CN": "门下省",
+    "en": "Chancellery"
+  },
+  "dept.menxiaRole": {
+    "zh_TW": "侍中",
+    "zh_CN": "侍中",
+    "en": "Lord Chamberlain"
+  },
+  "dept.menxiaRank": {
+    "zh_TW": "正一品",
+    "zh_CN": "正一品",
+    "en": "First Rank"
+  },
+  "dept.shangshu": {
+    "zh_TW": "尚書省",
+    "zh_CN": "尚书省",
+    "en": "Department of State"
+  },
+  "dept.shangshuRole": {
+    "zh_TW": "尚書令",
+    "zh_CN": "尚书令",
+    "en": "Chief Minister"
+  },
+  "dept.shangshuRank": {
+    "zh_TW": "正一品",
+    "zh_CN": "正一品",
+    "en": "First Rank"
+  },
+  "dept.libu": {
+    "zh_TW": "禮部",
+    "zh_CN": "礼部",
+    "en": "Ministry of Rites"
+  },
+  "dept.libuRole": {
+    "zh_TW": "禮部尚書",
+    "zh_CN": "礼部尚书",
+    "en": "Minister of Rites"
+  },
+  "dept.libuRank": {
+    "zh_TW": "正二品",
+    "zh_CN": "正二品",
+    "en": "Second Rank"
+  },
+  "dept.hubu": {
+    "zh_TW": "戶部",
+    "zh_CN": "户部",
+    "en": "Ministry of Revenue"
+  },
+  "dept.hubuRole": {
+    "zh_TW": "戶部尚書",
+    "zh_CN": "户部尚书",
+    "en": "Minister of Revenue"
+  },
+  "dept.hubuRank": {
+    "zh_TW": "正二品",
+    "zh_CN": "正二品",
+    "en": "Second Rank"
+  },
+  "dept.bingbu": {
+    "zh_TW": "兵部",
+    "zh_CN": "兵部",
+    "en": "Ministry of War"
+  },
+  "dept.bingbuRole": {
+    "zh_TW": "兵部尚書",
+    "zh_CN": "兵部尚书",
+    "en": "Minister of War"
+  },
+  "dept.bingbuRank": {
+    "zh_TW": "正二品",
+    "zh_CN": "正二品",
+    "en": "Second Rank"
+  },
+  "dept.xingbu": {
+    "zh_TW": "刑部",
+    "zh_CN": "刑部",
+    "en": "Ministry of Justice"
+  },
+  "dept.xingbuRole": {
+    "zh_TW": "刑部尚書",
+    "zh_CN": "刑部尚书",
+    "en": "Minister of Justice"
+  },
+  "dept.xingbuRank": {
+    "zh_TW": "正二品",
+    "zh_CN": "正二品",
+    "en": "Second Rank"
+  },
+  "dept.gongbu": {
+    "zh_TW": "工部",
+    "zh_CN": "工部",
+    "en": "Ministry of Works"
+  },
+  "dept.gongbuRole": {
+    "zh_TW": "工部尚書",
+    "zh_CN": "工部尚书",
+    "en": "Minister of Works"
+  },
+  "dept.gongbuRank": {
+    "zh_TW": "正二品",
+    "zh_CN": "正二品",
+    "en": "Second Rank"
+  },
+  "dept.libuHr": {
+    "zh_TW": "吏部",
+    "zh_CN": "吏部",
+    "en": "Ministry of Personnel"
+  },
+  "dept.libuHrRole": {
+    "zh_TW": "吏部尚書",
+    "zh_CN": "吏部尚书",
+    "en": "Minister of Personnel"
+  },
+  "dept.libuHrRank": {
+    "zh_TW": "正二品",
+    "zh_CN": "正二品",
+    "en": "Second Rank"
+  },
+  "dept.zaochao": {
+    "zh_TW": "欽天監",
+    "zh_CN": "钦天监",
+    "en": "Imperial Observatory"
+  },
+  "dept.zaochaoRole": {
+    "zh_TW": "朝報官",
+    "zh_CN": "朝报官",
+    "en": "Court Astrologer"
+  },
+  "dept.zaochaoRank": {
+    "zh_TW": "正三品",
+    "zh_CN": "正三品",
+    "en": "Third Rank"
+  },
+  "news.catPolitics": {
+    "zh_TW": "政治",
+    "zh_CN": "政治",
+    "en": "Politics"
+  },
+  "news.catMilitary": {
+    "zh_TW": "軍事",
+    "zh_CN": "军事",
+    "en": "Military"
+  },
+  "news.catEconomy": {
+    "zh_TW": "經濟",
+    "zh_CN": "经济",
+    "en": "Economy"
+  },
+  "news.catAI": {
+    "zh_TW": "AI大模型",
+    "zh_CN": "AI大模型",
+    "en": "AI & LLMs"
+  },
+  "news.catPoliticsDesc": {
+    "zh_TW": "全球政治動態",
+    "zh_CN": "全球政治动态",
+    "en": "Global Politics"
+  },
+  "news.catMilitaryDesc": {
+    "zh_TW": "軍事與衝突",
+    "zh_CN": "军事与冲突",
+    "en": "Military & Conflict"
+  },
+  "news.catEconomyDesc": {
+    "zh_TW": "經濟與市場",
+    "zh_CN": "经济与市场",
+    "en": "Economy & Markets"
+  },
+  "news.catAIDesc": {
+    "zh_TW": "AI與大模型進展",
+    "zh_CN": "AI与大模型进展",
+    "en": "AI & LLM Progress"
+  },
+  "freeEdict.minLength": {
+    "zh_TW": "請輸入至少6個字的旨意內容",
+    "zh_CN": "请输入至少6个字的旨意内容",
+    "en": "Please enter at least 6 characters for the edict"
+  },
+  "freeEdict.success": {
+    "zh_TW": "📜 {id} 旨意已下達",
+    "zh_CN": "📜 {id} 旨意已下达",
+    "en": "📜 {id} Edict issued"
+  },
+  "feedback.title": {
+    "zh_TW": "請選擇反饋類型：\n1 = 稟報異常 (Bug)\n2 = 奏請功能 (Feature)\n\n輸入 1 或 2：",
+    "zh_CN": "请选择反馈类型：\n1 = 禀报异常 (Bug)\n2 = 奏请功能 (Feature)\n\n输入 1 或 2：",
+    "en": "Select feedback type:\n1 = Report Bug\n2 = Request Feature\n\nEnter 1 or 2:"
+  },
+  "api.auth.pleaseProvidePassword": {
+    "zh_TW": "請提供密碼",
+    "zh_CN": "请提供密码",
+    "en": "Please provide password"
+  },
+  "api.auth.wrongPassword": {
+    "zh_TW": "密碼錯誤",
+    "zh_CN": "密码错误",
+    "en": "Wrong password"
+  },
+  "api.auth.notLoggedIn": {
+    "zh_TW": "未登錄或會話已過期",
+    "zh_CN": "未登录或会话已过期",
+    "en": "Not logged in or session expired"
+  },
+  "api.task.notFound": {
+    "zh_TW": "任務 {id} 不存在",
+    "zh_CN": "任务 {id} 不存在",
+    "en": "Task {id} not found"
+  },
+  "api.task.mustBeJsonObject": {
+    "zh_TW": "請求體必須是 JSON 對象",
+    "zh_CN": "请求体必须是 JSON 对象",
+    "en": "Request body must be a JSON object"
+  },
+  "api.task.modeInvalid": {
+    "zh_TW": "mode 必須是 auto/json/db 之一",
+    "zh_CN": "mode 必须是 auto/json/db 之一",
+    "en": "mode must be one of auto/json/db"
+  },
+  "api.subscription.saved": {
+    "zh_TW": "訂閱配置已保存",
+    "zh_CN": "订阅配置已保存",
+    "en": "Subscription settings saved"
+  },
+  "api.subscription.unknownField": {
+    "zh_TW": "未知字段:",
+    "zh_CN": "未知字段:",
+    "en": "Unknown field:"
+  },
+  "api.subscription.categoriesArray": {
+    "zh_TW": "categories 必須是數組",
+    "zh_CN": "categories 必须是数组",
+    "en": "categories must be an array"
+  },
+  "api.subscription.keywordsArray": {
+    "zh_TW": "keywords 必須是數組",
+    "zh_CN": "keywords 必须是数组",
+    "en": "keywords must be an array"
+  },
+  "api.subscription.notificationObject": {
+    "zh_TW": "notification 必須是對象",
+    "zh_CN": "notification 必须是对象",
+    "en": "notification must be an object"
+  },
+  "api.subscription.unsupportedChannel": {
+    "zh_TW": "不支持的渠道:",
+    "zh_CN": "不支持的渠道:",
+    "en": "Unsupported channel:"
+  },
+  "api.subscription.webhookInvalid": {
+    "zh_TW": "Webhook URL 無效",
+    "zh_CN": "Webhook URL 无效",
+    "en": "Webhook URL invalid"
+  },
+  "api.morning.refreshTriggered": {
+    "zh_TW": "採集已觸發，約30-60秒後刷新",
+    "zh_CN": "采集已触发，约30-60秒后刷新",
+    "en": "Collection triggered, refresh in ~30-60s"
+  },
+  "common.ok": {
+    "zh_TW": "操作成功",
+    "zh_CN": "操作成功",
+    "en": "Success"
+  },
+  "common.fail": {
+    "zh_TW": "操作失敗",
+    "zh_CN": "操作失败",
+    "en": "Failed"
+  },
+  "common.serverFail": {
+    "zh_TW": "服務器連接失敗",
+    "zh_CN": "服务器连接失败",
+    "en": "Server connection failed"
+  },
+  "common.推进失敗": {
+    "zh_TW": "推進失敗",
+    "zh_CN": "推进失败",
+    "en": "Advance failed"
+  },
+  "common.title.ceremony": {
+    "zh_TW": "軍機處 · 三省六部總控臺",
+    "zh_CN": "军机处 · 三省六部总控台",
+    "en": "Edict · Imperial Control Panel"
+  },
+  "memorials.filterAll": {
+    "zh_TW": "全部",
+    "zh_CN": "全部",
+    "en": "All"
+  },
+  "subscription.addRss": {
+    "zh_TW": "添加",
+    "zh_CN": "添加",
+    "en": "Add"
+  },
+  "subscription.cancel": {
+    "zh_TW": "取消",
+    "zh_CN": "取消",
+    "en": "Cancel"
+  },
+  "subscription.confirm": {
+    "zh_TW": "確認",
+    "zh_CN": "确认",
+    "en": "Confirm"
+  }
+}

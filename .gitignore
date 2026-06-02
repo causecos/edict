@@ -1,4 +1,6 @@
 # Runtime data (machine-specific)
+.pids/
+_output/
 data/live_status.json
 data/agent_config.json
 data/model_change_log.json

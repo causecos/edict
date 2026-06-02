@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
+from ..auth import require_api_key
 from ..models.task import Task, TaskState
 from ..services.event_bus import get_event_bus
 from ..services.task_service import TaskService
@@ -48,7 +49,7 @@ class LegacyTodoUpdate(BaseModel):
     todos: list[dict]
 
 
-@router.post("/by-legacy/{legacy_id}/transition")
+@router.post("/by-legacy/{legacy_id}/transition", dependencies=[Depends(require_api_key)])
 async def legacy_transition(
     legacy_id: str,
     body: LegacyTransition,
@@ -72,7 +73,7 @@ async def legacy_transition(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/by-legacy/{legacy_id}/progress")
+@router.post("/by-legacy/{legacy_id}/progress", dependencies=[Depends(require_api_key)])
 async def legacy_progress(
     legacy_id: str,
     body: LegacyProgress,
@@ -88,7 +89,7 @@ async def legacy_progress(
     return {"message": "ok"}
 
 
-@router.put("/by-legacy/{legacy_id}/todos")
+@router.put("/by-legacy/{legacy_id}/todos", dependencies=[Depends(require_api_key)])
 async def legacy_todos(
     legacy_id: str,
     body: LegacyTodoUpdate,

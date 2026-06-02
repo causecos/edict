@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from ..db import get_db
 from ..services.event_bus import get_event_bus
+from ..auth import require_api_key
 
 log = logging.getLogger("edict.api.admin")
 router = APIRouter()
@@ -63,7 +64,7 @@ async def pending_events(
     }
 
 
-@router.post("/migrate/check")
+@router.post("/migrate/check", dependencies=[Depends(require_api_key)])
 async def migration_check():
     """檢查舊數據文件是否存在。"""
     data_dir = Path(__file__).parents[4] / "data"
@@ -134,7 +135,7 @@ async def get_source_mode():
     }
 
 
-@router.post("/source-mode")
+@router.post("/source-mode", dependencies=[Depends(require_api_key)])
 async def set_source_mode(body: dict):
     """設定任務資料來源模式。"""
     mode = str(body.get("mode", "auto")).lower().strip()

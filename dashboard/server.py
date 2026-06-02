@@ -67,6 +67,11 @@ DEFAULT_TASK_SOURCE_MODE = {
     'timeoutMs': 3000,
 }
 
+
+def _get_api_key() -> str:
+    """從環境變數讀取 API Key（與 backend 共用）。"""
+    return os.environ.get('EDICT_API_KEY', '')
+
 # 靜態資源 MIME 類型
 _MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -201,8 +206,12 @@ def _backend_health(cfg=None):
     """檢測 backend API 健康。"""
     cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
     health_url = cfg['backendApiBase'] + '/health'
+    headers = {'Accept': 'application/json'}
+    _api_key = _get_api_key()
+    if _api_key:
+        headers['X-API-Key'] = _api_key
     try:
-        req = Request(health_url, headers={'Accept': 'application/json'})
+        req = Request(health_url, headers=headers)
         with urlopen(req, timeout=max(1, cfg['timeoutMs'] / 1000)) as resp:
             raw = resp.read().decode('utf-8', errors='replace')
             payload = json.loads(raw) if raw else {}
@@ -254,7 +263,11 @@ def _effective_source_mode(cfg, backend_ok=None):
 def _fetch_backend_live_status(cfg):
     """從 edict backend 讀取 DB 路線 live-status。"""
     url = cfg['backendApiBase'] + '/api/tasks/live-status'
-    req = Request(url, headers={'Accept': 'application/json'})
+    headers = {'Accept': 'application/json'}
+    _api_key = _get_api_key()
+    if _api_key:
+        headers['X-API-Key'] = _api_key
+    req = Request(url, headers=headers)
     with urlopen(req, timeout=max(1, cfg['timeoutMs'] / 1000)) as resp:
         raw = resp.read().decode('utf-8', errors='replace')
         data = json.loads(raw) if raw else {}

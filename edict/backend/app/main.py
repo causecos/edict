@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .services.event_bus import get_event_bus
+from .auth import require_api_key
 from .api import tasks, agents, events, admin, websocket
 from .api import legacy
 
@@ -54,13 +55,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — 開發環境允許所有來源
+# CORS — 僅允許本地開發環境
+settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        f"http://localhost:{settings.port}",
+        "http://localhost:7891",
+        "http://127.0.0.1:7891",
+        "http://localhost:5173",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["X-API-Key", "Authorization", "Content-Type"],
 )
 
 # 註冊路由

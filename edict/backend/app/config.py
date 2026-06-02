@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # ── Redis ──
     redis_url: str = "redis://localhost:6379/0"
 
+    # ── Auth ──
+    api_key: str = ""
+    secret_key: str = "change-me-in-production"
+
     # ── Server ──
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000

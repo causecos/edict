@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
+from ..auth import require_api_key
 from ..models.task import TaskState
 from ..services.event_bus import EventBus, get_event_bus
 from ..services.task_service import TaskService
@@ -118,7 +119,7 @@ async def task_stats(svc: TaskService = Depends(get_task_service)):
     return {"total": total, "by_state": stats}
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=[Depends(require_api_key)])
 async def create_task(
     body: TaskCreate,
     svc: TaskService = Depends(get_task_service),
@@ -149,7 +150,7 @@ async def get_task(
         raise HTTPException(status_code=404, detail="Task not found")
 
 
-@router.post("/{task_id}/transition")
+@router.post("/{task_id}/transition", dependencies=[Depends(require_api_key)])
 async def transition_task(
     task_id: uuid.UUID,
     body: TaskTransition,
@@ -173,7 +174,7 @@ async def transition_task(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/{task_id}/dispatch")
+@router.post("/{task_id}/dispatch", dependencies=[Depends(require_api_key)])
 async def dispatch_task(
     task_id: uuid.UUID,
     agent: str = Query(description="目標 agent"),
@@ -188,7 +189,7 @@ async def dispatch_task(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.post("/{task_id}/progress")
+@router.post("/{task_id}/progress", dependencies=[Depends(require_api_key)])
 async def add_progress(
     task_id: uuid.UUID,
     body: TaskProgress,
@@ -202,7 +203,7 @@ async def add_progress(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.put("/{task_id}/todos")
+@router.put("/{task_id}/todos", dependencies=[Depends(require_api_key)])
 async def update_todos(
     task_id: uuid.UUID,
     body: TaskTodoUpdate,
@@ -216,7 +217,7 @@ async def update_todos(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.put("/{task_id}/scheduler")
+@router.put("/{task_id}/scheduler", dependencies=[Depends(require_api_key)])
 async def update_scheduler(
     task_id: uuid.UUID,
     body: TaskSchedulerUpdate,

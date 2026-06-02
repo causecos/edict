@@ -1,7 +1,7 @@
 #!/bin/bash
 # ══════════════════════════════════════════════════════════════
 # 三省六部 · 统一服务管理脚本
-# 用法: ./edict.sh {start|stop|status|restart|logs}
+# 用法: ./edict.sh {start|stop|status|restart|logs|start-all|stop-all|restart-all}
 # ══════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -12,12 +12,23 @@ LOGDIR="$REPO_DIR/logs"
 
 SERVER_PIDFILE="$PIDDIR/server.pid"
 LOOP_PIDFILE="$PIDDIR/loop.pid"
+BACKEND_PIDFILE="$PIDDIR/backend.pid"
+ORCH_PIDFILE="$PIDDIR/orchestrator.pid"
+DISPATCH_PIDFILE="$PIDDIR/dispatch.pid"
+OUTBOX_PIDFILE="$PIDDIR/outbox_relay.pid"
+ALL_PIDFILE="$PIDDIR/edict.pid"
 SERVER_LOG="$LOGDIR/server.log"
 LOOP_LOG="$LOGDIR/loop.log"
+BACKEND_LOG="$LOGDIR/backend.log"
+ORCH_LOG="$LOGDIR/orchestrator.log"
+DISPATCH_LOG="$LOGDIR/dispatch.log"
+OUTBOX_LOG="$LOGDIR/outbox_relay.log"
 
 # 可通过环境变量覆盖的配置
 DASHBOARD_HOST="${EDICT_DASHBOARD_HOST:-127.0.0.1}"
 DASHBOARD_PORT="${EDICT_DASHBOARD_PORT:-7891}"
+BACKEND_HOST="${EDICT_BACKEND_HOST:-0.0.0.0}"
+BACKEND_PORT="${EDICT_BACKEND_PORT:-8000}"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
@@ -55,6 +66,92 @@ _get_pid() {
   if [[ -f "$pidfile" ]]; then
     cat "$pidfile" 2>/dev/null
   fi
+}
+
+# ── 全服务管理 ──
+
+do_start_all() {
+  echo -e "${BLUE}╔══════════════════════════════════════════╗${NC}"
+  echo -e "${BLUE}║  🏛️  三省六部 · 全服务启动               ║${NC}"
+  echo -e "${BLUE}╚══════════════════════════════════════════╝${NC}"
+  echo ""
+
+  _ensure_dirs
+
+  # 启动 Backend
+  if ! _is_running "$BACKEND_PIDFILE"; then
+    echo -e "${GREEN}▶ 启动 Backend API (port $BACKEND_PORT)...${NC}"
+    cd "$REPO_DIR/edict/backend"
+    nohup python3 -m uvicorn app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" >> "$BACKEND_LOG" 2>&1 &
+    echo $! > "$BACKEND_PIDFILE"
+    echo -e "  PID=$(_get_pid "$BACKEND_PIDFILE")  日志: ${BLUE}$BACKEND_LOG${NC}"
+  else
+    echo -e "${YELLOW}⚠️  Backend 已运行 (PID=$(_get_pid "$BACKEND_PIDFILE"))${NC}"
+  fi
+
+  # 等待 Backend 就绪
+  sleep 2
+
+  # 启动 Workers
+  for worker in orchestrator dispatch outbox_relay; do
+    local pidvar="${worker^^}_PIDFILE"
+    local pidfile="${!pidvar}"
+    local logvar="${worker^^}_LOG"
+    local logfile="${!logvar}"
+    case "$worker" in
+      orchestrator) local wcmd="app.workers.orchestrator_worker" ;;
+      dispatch)     local wcmd="app.workers.dispatch_worker" ;;
+      outbox_relay) local wcmd="app.workers.outbox_relay" ;;
+    esac
+    if ! _is_running "$pidfile"; then
+      echo -e "${GREEN}▶ 启动 Worker: $worker...${NC}"
+      cd "$REPO_DIR/edict/backend"
+      nohup python3 -m "$wcmd" >> "$logfile" 2>&1 &
+      echo $! > "$pidfile"
+      echo -e "  PID=$(_get_pid "$pidfile")  日志: ${BLUE}$logfile${NC}"
+    else
+      echo -e "${YELLOW}⚠️  Worker $worker 已运行 (PID=$(_get_pid "$pidfile"))${NC}"
+    fi
+  done
+
+  # 启动 Dashboard
+  do_start
+
+  # 写 all PID 文件
+  echo $$ > "$ALL_PIDFILE"
+  echo ""
+  echo -e "${GREEN}✅ 全服务已启动！${NC}"
+  echo -e "   看板: ${BLUE}http://${DASHBOARD_HOST}:${DASHBOARD_PORT}${NC}"
+  echo -e "   API:  ${BLUE}http://${BACKEND_HOST}:${BACKEND_PORT}${NC}"
+}
+
+do_stop_all() {
+  echo -e "${YELLOW}正在关闭全服务...${NC}"
+  do_stop  # 停 Dashboard + Loop
+
+  for svc in outbox_relay dispatch orchestrator backend; do
+    local pidvar="${svc^^}_PIDFILE"
+    local pidfile="${!pidvar}"
+    if _is_running "$pidfile"; then
+      local pid=$(_get_pid "$pidfile")
+      kill "$pid" 2>/dev/null
+      for _ in $(seq 1 10); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.5
+      done
+      kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+      rm -f "$pidfile"
+      echo -e "  ✅ $svc (PID=$pid) 已停止"
+    fi
+  done
+  rm -f "$ALL_PIDFILE"
+  echo -e "${GREEN}✅ 全服务已关闭${NC}"
+}
+
+do_restart_all() {
+  do_stop_all
+  sleep 2
+  do_start_all
 }
 
 # ── 启动 ──
@@ -217,15 +314,21 @@ case "${1:-}" in
   restart) do_stop; sleep 1; do_start ;;
   status)  do_status ;;
   logs)    do_logs "${2:-all}" ;;
+  start-all)   do_start_all ;;
+  stop-all)    do_stop_all ;;
+  restart-all) do_restart_all ;;
   *)
-    echo "用法: $0 {start|stop|restart|status|logs}"
+    echo "用法: $0 {start|stop|restart|status|logs|start-all|stop-all|restart-all}"
     echo ""
     echo "命令:"
-    echo "  start    启动所有服务（看板 + 数据刷新）"
-    echo "  stop     停止所有服务"
-    echo "  restart  重启所有服务"
-    echo "  status   查看运行状态"
-    echo "  logs     查看日志 (logs [server|loop|all])"
+    echo "  start       启动看板 + 数据刷新循环"
+    echo "  stop        停止看板 + 数据刷新循环"
+    echo "  restart     重啟看板 + 数据刷新循环"
+    echo "  status      查看运行状态"
+    echo "  logs        查看日志"
+    echo "  start-all   启动全部服务（Backend + Workers + Dashboard）"
+    echo "  stop-all    停止全部服务"
+    echo "  restart-all 重啟全部服务"
     echo ""
     echo "环境变量:"
     echo "  EDICT_DASHBOARD_HOST  监听地址 (默认: 127.0.0.1)"

@@ -1,38 +1,40 @@
 # ══════════════════════════════════════════════════════════════
-# 三省六部 · systemd 服务模板
-# 部署说明: 复制到 /etc/systemd/system/edict.service
-#   sudo cp edict.service /etc/systemd/system/
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable --now edict
+# 三省六部 · systemd 服務模板
+# 部署說明：
+#   1. 修改下方 User / WorkingDirectory / Environment 為實際值
+#   2. sudo cp edict.service /etc/systemd/system/
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable --now edict
 # ══════════════════════════════════════════════════════════════
 [Unit]
-Description=三省六部 Multi-Agent Orchestration Dashboard
-After=network.target
+Description=Edict 三省六部 — Multi-Agent Orchestration
+After=network.target postgresql.service redis.service
 
 [Service]
 Type=forking
-User=edict
-Group=edict
-WorkingDirectory=/opt/edict
-ExecStart=/opt/edict/edict.sh start
-ExecStop=/opt/edict/edict.sh stop
-ExecReload=/opt/edict/edict.sh restart
+User=cosmos
+Group=cosmos
+WorkingDirectory=/home/cosmos/ai-base/core/edict
+ExecStart=/home/cosmos/ai-base/core/edict/edict.sh start-all
+ExecStop=/home/cosmos/ai-base/core/edict/edict.sh stop-all
+ExecReload=/home/cosmos/ai-base/core/edict/edict.sh restart-all
 
-# PID 跟踪
-PIDFile=/opt/edict/.pids/server.pid
+# PID 追蹤
+PIDFile=/home/cosmos/ai-base/core/edict/.pids/edict.pid
 
-# 自动重启
+# 自動重啟
 Restart=on-failure
 RestartSec=5
 
-# 环境变量（按需修改）
-Environment=EDICT_DASHBOARD_HOST=0.0.0.0
+# 環境變數（按需修改）
+Environment=EDICT_API_HOST=0.0.0.0
 Environment=EDICT_DASHBOARD_PORT=7891
+Environment=EDICT_BACKEND_PORT=8000
 
 # 安全加固
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/opt/edict/data /opt/edict/logs /opt/edict/.pids
+ReadWritePaths=/home/cosmos/ai-base/core/edict/data /home/cosmos/ai-base/core/edict/logs /home/cosmos/ai-base/core/edict/.pids
 
 [Install]
 WantedBy=multi-user.target

@@ -1,6 +1,18 @@
 # ══════════════════════════════════════════════════════
 # Edict 三省六部 — 事件驱动架构 Docker Compose
 # ══════════════════════════════════════════════════════
+#
+# 使用方式：
+#   POSTGRES_PASSWORD=*** API_KEY=*** docker compose up -d
+#
+# 服务清单：
+#   postgres      PostgreSQL 16 (数据持久化)
+#   redis         Redis 7 (Streams / 缓存)
+#   backend       FastAPI API 服务 (端口 8000)
+#   orchestrator  编排 worker (状态流转 + 停滞检测)
+#   dispatch      派发 worker (调用 Agent CLI)
+#   outbox_relay  投递 worker (Outbox → Redis Streams)
+#   frontend      React SPA (端口 3000)
 
 services:
   # ── 基础设施 ──
@@ -10,9 +22,9 @@ services:
     environment:
       POSTGRES_DB: edict
       POSTGRES_USER: edict
-      POSTGRES_PASSWORD: edict_dev_2024
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     ports:
-      - "5432:5432"
+      - "${PG_PORT:-5432}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,7 +37,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
@@ -36,42 +48,34 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ── 后端服务 ──
+  # ── Backend API ──
 
   backend:
     build:
       context: ..
       dockerfile: edict/Dockerfile
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://edict:edict_dev_2024@postgres:5432/edict
+      DATABASE_URL: postgresql+asyncpg://edict:${POSTGRES_PASSWORD}@postgres:5432/edict
       REDIS_URL: redis://redis:6379/0
-      PORT: 8000
-      DEBUG: "true"
+      API_KEY: ${API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ../agents:/app/agents:ro
-      - ../data:/app/data
-    command: >
-      sh -c "
-        python -m alembic upgrade head &&
-        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-      "
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
 
-  # ── Worker 进程 ──
+  # ── Workers ──
 
   orchestrator:
     build:
       context: ..
       dockerfile: edict/Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://edict:edict_dev_2024@postgres:5432/edict
+      DATABASE_URL: postgresql+asyncpg://edict:${POSTGRES_PASSWORD}@postgres:5432/edict
       REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
@@ -81,14 +85,13 @@ services:
     command: python -m app.workers.orchestrator_worker
     restart: unless-stopped
 
-  dispatcher:
+  dispatch:
     build:
       context: ..
       dockerfile: edict/Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://edict:edict_dev_2024@postgres:5432/edict
+      DATABASE_URL: postgresql+asyncpg://edict:${POSTGRES_PASSWORD}@postgres:5432/edict
       REDIS_URL: redis://redis:6379/0
-      OPENCLAW_PROJECT_DIR: /app
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,7 +104,22 @@ services:
     command: python -m app.workers.dispatch_worker
     restart: unless-stopped
 
-  # ── 前端 ──
+  outbox_relay:
+    build:
+      context: ..
+      dockerfile: edict/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://edict:${POSTGRES_PASSWORD}@postgres:5432/edict
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m app.workers.outbox_relay
+    restart: unless-stopped
+
+  # ── Frontend ──
 
   frontend:
     build:
@@ -110,8 +128,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      VITE_API_URL: http://localhost:8000
-      VITE_WS_URL: ws://localhost:8000/ws
+      VITE_API_URL: http://backend:8000
+      VITE_WS_URL: ws://backend:8000/ws
     depends_on:
       - backend
     restart: unless-stopped

@@ -35,6 +35,22 @@
 
 ---
 
+## 🔱 Maintained Fork Notice
+
+> 此為 [cft0808/edict](https://github.com/cft0808/edict) 的 **downstream fork**，目標是驗證以下改動並整理為 upstream PR：
+
+| 改動 | 狀態 | 說明 |
+|------|------|------|
+| **DB-first 任務狀態** | ✅ 已實作 | PostgreSQL + Redis Streams 驅動，`task_source_mode.py` 切換 |
+| **Telegram 工作流** | ✅ 已實作 | 通知管道從 Feishu 遷移至 Telegram，source channel 追蹤 |
+| **繁體中文本地化** | ✅ 已實作 | Dashboard 全介面繁中，`fanti_convert.py` 工具 |
+| **本地部署強化** | ✅ 已實作 | systemd user service、`.env` 密鑰管理、edict.sh 全服務管理 |
+| **安全加固** | ✅ 已實作 | API Key 後端鑑權、動態密碼生成、審計日誌 |
+| **Windows 相容** | 🚧 驗證中 | 路徑解析、shell 腳本跨平台適配 |
+| **程式註解補完** | 🚧 進行中 | 依 RULES.md 規範補齊中文必要註解 |
+
+> 上游 [cft0808/edict](https://github.com/cft0808/edict) 為三省六部 AI 多 Agent 協作架構的原始專案。本 fork 之改動將逐步以 PR 形式回饋上游。
+
 ## 🆕 近期更新（2026-06）
 
 - **任務資料源改為 DB-first**：Dashboard `live-status` 支援 `db/json/auto` 模式切換，預設建議 `db`。

@@ -6,18 +6,12 @@ GET 端點保持開放以供 Dashboard 讀取。
 
 import logging
 import secrets
-from functools import lru_cache
 
 from fastapi import HTTPException, Request, status
-from fastapi.security import HTTPBearer
 
 from .config import get_settings
 
 log = logging.getLogger("edict.auth")
-
-# Bearer token scheme for API key — auto_error=False 避免未帶 token 時自動 403
-# 實際驗證邏輯由 require_api_key dependency 控制（未設定 API_KEY 時略過）
-_api_key_scheme = HTTPBearer(auto_error=False)
 
 
 def _extract_api_key(request: Request) -> str | None:
@@ -79,10 +73,3 @@ def require_api_key(request: Request) -> str:
     return provided_key
 
 
-@lru_cache
-def generate_api_key() -> str:
-    """生成一個安全的隨機 API Key（256-bit，僅供初次設定參考）。
-
-    使用 lru_cache 確保同一次啟動只生成一個值。
-    """
-    return secrets.token_urlsafe(32)

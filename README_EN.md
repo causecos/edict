@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <sub>12 AI agents (11 business roles + 1 compatibility role) form the Three Departments & Six Ministries: Crown Prince triages, Planning proposes, Review vetoes, Dispatch assigns, Ministries execute.<br>Built-in <b>institutional review gates</b> that CrewAI doesn't have. A <b>real-time dashboard</b> that AutoGen doesn't have.</sub>
+  <sub>11 AI agents (10 business roles + 1 compatibility role) form the Three Departments & Six Ministries: Crown Prince triages, Planning proposes, Review vetoes, Dispatch assigns, Ministries execute.<br>Built-in <b>institutional review gates</b> that CrewAI doesn't have. A <b>real-time dashboard</b> that AutoGen doesn't have.</sub>
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/OpenClaw-Required-blue?style=flat-square" alt="OpenClaw">
   <img src="https://img.shields.io/badge/Python-3.9+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/Agents-12_Specialized-8B5CF6?style=flat-square" alt="Agents">
+  <img src="https://img.shields.io/badge/Agents-11_Specialized-8B5CF6?style=flat-square" alt="Agents">
   <img src="https://img.shields.io/badge/Dashboard-Real--time-F59E0B?style=flat-square" alt="Dashboard">
   <img src="https://img.shields.io/badge/License-MIT-22C55E?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Frontend-React_18-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React">
@@ -300,7 +300,7 @@ This is why Edict produces reliable results on complex tasks: there's a mandator
 ```bash
 docker run -p 7891:7891 cft0808/sansheng-demo
 ```
-Open http://localhost:7891 to access the Command Center Dashboard.
+Open http://localhost:${DASHBOARD_PORT:-7891} to access the Command Center Dashboard. (Ports can be customized via environment variables `DASHBOARD_PORT` / `BACKEND_PORT`)
 
 <details>
 <summary><b>⚠️ Getting <code>exec format error</code>? (click to expand)</b></summary>
@@ -362,7 +362,7 @@ bash scripts/run_loop.sh &      # Data refresh loop
 python3 dashboard/server.py     # Dashboard server
 
 # Open browser
-open http://127.0.0.1:7891
+open http://127.0.0.1:${DASHBOARD_PORT:-7891}
 ```
 
 <details>
@@ -379,7 +379,7 @@ bash edict.sh start-all
 bash edict.sh stop-all
 
 # Individual management
-systemctl --user start edict-backend          # FastAPI backend (port 8000)
+systemctl --user start edict-backend          # FastAPI backend (port ${BACKEND_PORT:-8000})
 systemctl --user start edict-dispatch-worker  # Dispatch Worker
 systemctl --user start edict-orchestrator     # DAG Orchestrator
 systemctl --user start edict-outbox-relay     # Outbox Relay
@@ -485,7 +485,7 @@ Edict's task flow is powered by a **PostgreSQL + Redis Streams** async backend, 
 
 | Service | Tech | Description |
 |---------|------|-------------|
-| **Backend API** | FastAPI + SQLAlchemy | Task / Audit / Outbox persistence, RESTful API (port 8000) |
+| **Backend API** | FastAPI + SQLAlchemy | Task / Audit / Outbox persistence, RESTful API (port ${BACKEND_PORT:-8000}) |
 | **EventBus** | Redis Streams | Event bus, decoupled pub/sub between services |
 | **Dispatch Worker** | Python asyncio | Parallel dispatch, exponential backoff retry + resource lock |
 | **Orchestrator** | DAG parsing | Task decomposition and dependency topological sort |
@@ -519,7 +519,7 @@ bash edict.sh status
 
 ```
 edict/
-├── agents/                     # 12 Agent personality templates
+├── agents/                     # 11 Agent personality templates
 │   ├── taizi/SOUL.md           # Crown Prince · Message triage (incl. edict title standards)
 │   ├── zhongshu/SOUL.md        # Secretariat · Planning hub
 │   ├── menxia/SOUL.md          # Chancellery · Review gatekeeper
@@ -658,7 +658,7 @@ python3 scripts/skill_manager.py update-remote \
 
 ```bash
 # Add remote skill
-curl -X POST http://localhost:7891/api/add-remote-skill \
+curl -X POST http://localhost:${DASHBOARD_PORT:-7891}/api/add-remote-skill \
   -H "Content-Type: application/json" \
   -d '{
     "agentId": "menxia",
@@ -668,7 +668,7 @@ curl -X POST http://localhost:7891/api/add-remote-skill \
   }'
 
 # List all remote skills
-curl http://localhost:7891/api/remote-skills-list
+curl http://localhost:${DASHBOARD_PORT:-7891}/api/remote-skills-list
 ```
 
 **Default importable Skills:**
@@ -744,7 +744,7 @@ See [🎓 Remote Skills Resource Management Guide](docs/remote-skills-guide.md)
 
 1. **Check Agent registration status**:
 ```bash
-curl -s http://127.0.0.1:7891/api/agents-status | python3 -m json.tool
+curl -s http://127.0.0.1:${DASHBOARD_PORT:-7891}/api/agents-status | python3 -m json.tool
 ```
 Confirm the `taizi` agent's `statusLabel` is `alive`.
 
@@ -762,7 +762,7 @@ grep -i "error\|fail\|unknown" /tmp/openclaw/openclaw-*.log | tail -20
 4. **Force retry**:
 ```bash
 # Manually trigger patrol scan (auto-retry stuck tasks)
-curl -X POST http://127.0.0.1:7891/api/scheduler-scan \
+curl -X POST http://127.0.0.1:${DASHBOARD_PORT:-7891}/api/scheduler-scan \
   -H 'Content-Type: application/json' -d '{"thresholdSec":60}'
 ```
 
@@ -825,7 +825,7 @@ find ~/ai-base/core/edict/edict/backend -type d -name "__pycache__" -exec rm -rf
 systemctl --user restart edict-backend
 
 # 3. Verify (using agents endpoint as example)
-curl -s http://127.0.0.1:8000/api/agents | python3 -c "
+curl -s http://127.0.0.1:${BACKEND_PORT:-8000}/api/agents | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 print(f'Agent count: {len(d[\"agents\"])}')  # Should be 11
@@ -932,7 +932,7 @@ If this project makes you smile, please give it a Star ⚔️
 </p>
 
 What you'll find:
-- 🏛️ **Architecture deep-dives** — How do the 12 agents achieve separation of powers?
+- 🏛️ **Architecture deep-dives** — How do the 11 agents achieve separation of powers?
 - 🔥 **War stories** — When agents fight, burn tokens, or go on strike
 - 🛠️ **Issue fix chronicles** — Every bug is a memorial; see how the Emperor marks it in red
 - 💡 **Token-saving tricks** — Run the full pipeline at 1/10 the cost

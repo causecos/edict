@@ -4,7 +4,6 @@ auth.py 單元測試 — API Key 認證模組。
 測試範圍：
 - _extract_api_key: 從 Request 提取 API Key（X-API-Key、Bearer、無 header）
 - require_api_key: FastAPI 依賴注入驗證（開發模式、缺失 key、錯誤 key、正確 key）
-- generate_api_key: 安全隨機 Key 生成（長度、唯一性）
 
 隔離策略：使用 unittest.mock.patch 隔離 get_settings() 依賴。
 """
@@ -16,7 +15,6 @@ from fastapi import HTTPException
 
 from edict.backend.app.auth import (
     _extract_api_key,
-    generate_api_key,
     require_api_key,
 )
 
@@ -247,69 +245,3 @@ class TestRequireApiKey:
                 require_api_key(request)
             assert exc_info.value.status_code == 401
 
-
-# ─────────────────────────────────────────────
-# generate_api_key
-# ─────────────────────────────────────────────
-
-
-class TestGenerateApiKey:
-    """generate_api_key 函數單元測試 — 安全隨機 Key 生成。"""
-
-    def test_length_is_43_chars(self):
-        """
-        given: 無
-        when: 呼叫 generate_api_key
-        then: 回傳長度為 43 的字串（token_urlsafe(32) 的 base64 編碼結果）
-        """
-        # 清除 LRU 快取，確保每次測試獨立
-        generate_api_key.cache_clear()
-        key = generate_api_key()
-        assert len(key) == 43, f"Expected 43 chars, got {len(key)}: {key!r}"
-
-    def test_only_urlsafe_base64_chars(self):
-        """
-        given: 無
-        when: 呼叫 generate_api_key
-        then: 回傳字串僅包含 URL-safe base64 字元（A-Z, a-z, 0-9, -, _）
-        """
-        generate_api_key.cache_clear()
-        key = generate_api_key()
-        valid_chars = set(string.ascii_letters + string.digits + "-_")
-        assert all(c in valid_chars for c in key), f"Invalid char in: {key!r}"
-
-    def test_uniqueness_across_calls(self):
-        """
-        given: 無
-        when: 連續呼叫 generate_api_key 兩次（清除快取）
-        then: 每次回傳不同值
-        """
-        generate_api_key.cache_clear()
-        key1 = generate_api_key()
-        generate_api_key.cache_clear()
-        key2 = generate_api_key()
-        assert key1 != key2, "Consecutive calls should produce different keys"
-
-    @patch("edict.backend.app.auth.secrets.token_urlsafe")
-    def test_delegates_to_token_urlsafe_32(self, mock_token_urlsafe):
-        """
-        given: mock secrets.token_urlsafe
-        when: 呼叫 generate_api_key
-        then: 委派給 secrets.token_urlsafe(32) 並回傳其結果
-        """
-        generate_api_key.cache_clear()
-        mock_token_urlsafe.return_value = "mock-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-        key = generate_api_key()
-        mock_token_urlsafe.assert_called_once_with(32)
-        assert key == "mock-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-
-    def test_lru_cache_returns_same_key(self):
-        """
-        given: 已呼叫過一次 generate_api_key
-        when: 再次呼叫 generate_api_key（不清除快取）
-        then: 因 @lru_cache 裝飾器，回傳相同值
-        """
-        generate_api_key.cache_clear()
-        key1 = generate_api_key()
-        key2 = generate_api_key()  # 不清除快取
-        assert key1 == key2, "LRU cache should return the same key"

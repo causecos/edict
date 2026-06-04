@@ -18,7 +18,7 @@ class Todo(Base):
     __tablename__ = "todos"
 
     todo_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    trace_id = Column(String(32), nullable=False, index=True, comment="關聯任務ID")
+    trace_id = Column(String(64), nullable=False, index=True, comment="關聯任務ID")
     parent_id = Column(UUID(as_uuid=True), nullable=True, comment="父級 todo_id（樹狀結構）")
 
     title = Column(String(256), nullable=False, comment="子任務標題")

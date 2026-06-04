@@ -6,7 +6,7 @@
 
 ```bash
 docker compose up
-# 浏览器打开 http://localhost:7891 即可体验完整看板
+# 浏览器打开 http://localhost:${DASHBOARD_PORT:-7891} 即可体验完整看板
 ```
 
 ## 2. Dockerfile
@@ -102,6 +102,6 @@ jobs:
 git clone https://github.com/xxx/openclaw-sansheng-liubu.git
 cd openclaw-sansheng-liubu
 docker compose up
-# 打开 http://localhost:7891
+# 打开 http://localhost:${DASHBOARD_PORT:-7891}
 ​```
 ```

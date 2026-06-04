@@ -138,7 +138,7 @@ class Task(Base):
     archived = Column(Boolean, default=False, comment="是否歸檔")
 
     # ── 日誌與附件 ──
-    flow_log = Column(JSONB, default=list, comment="流轉日誌 [{at, from, to, remark}]")
+    flow_log = Column(JSONB, default=list, comment="流轉日誌 [{from, to, agent, reason, remark, ts, at}]")
     progress_log = Column(JSONB, default=list, comment="進展日誌 [{at, agent, text, todos}]")
     todos = Column(JSONB, default=list, comment="子任務 [{id, title, status, detail}]")
     scheduler = Column(JSONB, default=dict, comment="調度器元數據")

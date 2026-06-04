@@ -19,7 +19,7 @@ AGENT_META = {
     "shangshu": {"name": "尚書令", "role": "總協調與任務監督", "icon": "📜"},
     "zhongshu": {"name": "中書省", "role": "起草詔令與方案規劃", "icon": "✍️"},
     "menxia": {"name": "門下省", "role": "審核與封駁", "icon": "🔍"},
-    "libu": {"name": "吏部", "role": "人事與組織管理", "icon": "👤"},
+    "libu": {"name": "禮部", "role": "文檔與規範管理", "icon": "📝"},
     "hubu": {"name": "戶部", "role": "財務與資源管理", "icon": "💰"},
     "gongbu": {"name": "工部", "role": "工程與技術實施", "icon": "🔧"},
     "xingbu": {"name": "刑部", "role": "規範與質量審查", "icon": "⚖️"},

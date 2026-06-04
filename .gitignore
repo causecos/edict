@@ -53,3 +53,4 @@ _*.py
 # Generated docs
 *.docx
 *.pdf
+edict.service.env

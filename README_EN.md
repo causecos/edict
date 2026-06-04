@@ -135,7 +135,7 @@ This is why Edict produces reliable results on complex tasks: there's a mandator
 | 📜 **Memorial Archive** | Auto-generated archives with 5-phase timeline |
 | 📜 **Edict Templates** | 9 presets with parameter forms, cost estimates, one-click dispatch |
 | 👥 **Officials Overview** | Token leaderboard, activity stats |
-| 📰 **Daily Briefing** | Auto-curated news, subscription management, Feishu push |
+| 📰 **Daily Briefing** | Auto-curated news, subscription management, Telegram push |
 | ⚙️ **Model Config** | Per-agent LLM switching, automatic Gateway restart |
 | 🛠️ **Skills Config** | View installed skills, add new ones |
 | 💬 **Sessions** | Live session monitoring with channel labels |
@@ -253,7 +253,7 @@ bash edict.sh stop     # Stop
 ```
                            ┌───────────────────────────────────┐
                            │         👑 Emperor (You)           │
-                           │     Feishu · Telegram · Signal     │
+                           │     Telegram · Signal     │
                            └─────────────────┬─────────────────┘
                                              │ Issue edict
                            ┌─────────────────▼─────────────────┐
@@ -353,10 +353,6 @@ edict/
 │       ├── dispatch_worker.py  # Parallel dispatch + retry + resource lock
 │       ├── orchestrator_worker.py  # DAG orchestrator
 │       └── outbox_relay.py     # Transactional Outbox Relay
-├── agents/
-│   ├── <agent_id>/SOUL.md      # Agent personality templates
-│   ├── GLOBAL.md               # Global agent config
-│   └── groups/                 # Agent groups (sansheng / liubu)
 ├── scripts/                    # Data sync & automation scripts
 │   ├── kanban_update.py        #   Kanban CLI with data sanitization + state machine
 │   ├── agentrec_advisor.py     #   Agent model recommendation (merit + cost optimization)
@@ -409,7 +405,7 @@ edict/
 - [x] Memorial archive (5-phase timeline)
 - [x] Edict template library (9 presets)
 - [x] Court ceremony animation
-- [x] Daily news + Feishu webhook push
+- [x] Daily news + Telegram push
 - [x] Hot-swap LLM models + skill management
 - [x] Officials overview + token stats
 - [x] Session monitoring

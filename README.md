@@ -374,10 +374,10 @@ bash edict.sh start-all
 bash edict.sh stop-all
 
 # 個別管理
-systemctl --user start edict-backend       # FastAPI 後端 (port 8900)
-systemctl --user start edict-dispatch      # 派發 Worker
+systemctl --user start edict-backend       # FastAPI 後端 (port 8000)
+systemctl --user start edict-dispatch-worker  # 派發 Worker
 systemctl --user start edict-orchestrator  # DAG 編排器
-systemctl --user start edict-outbox        # Outbox Relay
+systemctl --user start edict-outbox-relay  # Outbox Relay
 
 # 查看狀態 / 日誌
 bash edict.sh status
@@ -478,7 +478,7 @@ Edict 的任務流轉由 **PostgreSQL + Redis Streams** 驅動的異步後端支
 
 | 服務 | 技術 | 說明 |
 |------|------|------|
-| **後端 API** | FastAPI + SQLAlchemy | 任務/審計/Outbox 持久化，RESTful API（port 8900） |
+| **後端 API** | FastAPI + SQLAlchemy | 任務/審計/Outbox 持久化，RESTful API（port 8000） |
 | **EventBus** | Redis Streams | 事件匯流排，服務間發布/訂閱解耦 |
 | **Dispatch Worker** | Python asyncio | 並行派發，指數退避重試 + 資源鎖 |
 | **Orchestrator** | DAG 解析 | 任務分解與依賴拓撲排序 |
@@ -542,10 +542,6 @@ edict/
 │       ├── dispatch_worker.py  # 并行调度 + 重试 + 资源锁
 │       ├── orchestrator_worker.py  # DAG 编排器
 │       └── outbox_relay.py     # 事务性 Outbox Relay
-├── agents/
-│   ├── <agent_id>/SOUL.md      # 各省部 Agent 人格模板
-│   ├── GLOBAL.md               # 全局 Agent 配置
-│   └── groups/                 # Agent 分组（sansheng / liubu）
 ├── scripts/
 │   ├── run_loop.sh             # 数据刷新循环（每 15 秒）
 │   ├── kanban_update.py        # 看板 CLI（含旨意数据清洗 + 标题校验 + 状态机）

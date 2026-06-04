@@ -10,6 +10,8 @@ log = logging.getLogger("edict.api.agents")
 router = APIRouter()
 
 # Agent 元信息（對應 agents/ 目錄下的 SOUL.md）
+# 靜態定義所有可用 Agent 的顯示資訊：名稱、角色、圖示
+# 新增 Agent 時在此追加條目即可，SOUL.md 內容透過 get_agent 動態讀取
 AGENT_META = {
     "zaochao": {"name": "早朝（朝會主持）", "role": "朝會召集與議程管理", "icon": "🏛️"},
     "taizi": {"name": "太子", "role": "任務分揀與派發", "icon": "👑"},
@@ -39,12 +41,16 @@ async def list_agents():
 
 @router.get("/{agent_id}")
 async def get_agent(agent_id: str):
-    """獲取 Agent 詳情。"""
+    """獲取 Agent 詳情 — 回傳 meta 資訊與 SOUL.md 前 2000 字元預覽。
+
+    路徑解析：從 backend/app/api/agents.py 向上 4 層到專案根目錄，
+    再進入 agents/<agent_id>/SOUL.md。
+    """
     meta = AGENT_META.get(agent_id)
     if not meta:
         return {"error": f"Agent '{agent_id}' not found"}, 404
 
-    # 嘗試讀取 SOUL.md
+    # 嘗試讀取 SOUL.md — SOUL.md 存在時回傳前 2000 字元預覽
     soul_path = Path(__file__).parents[4] / "agents" / agent_id / "SOUL.md"
     soul_content = ""
     if soul_path.exists():
@@ -59,7 +65,10 @@ async def get_agent(agent_id: str):
 
 @router.get("/{agent_id}/config")
 async def get_agent_config(agent_id: str):
-    """獲取 Agent 運行時配置。"""
+    """獲取 Agent 運行時配置 — 讀取 data/agent_config.json。
+
+    若檔案不存在或 JSON 損壞則回傳空 config，不回 404。
+    """
     config_path = Path(__file__).parents[4] / "data" / "agent_config.json"
     if not config_path.exists():
         return {"agent_id": agent_id, "config": {}}

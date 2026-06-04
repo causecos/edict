@@ -78,8 +78,13 @@ class EventBus:
     ) -> str:
         """發布事件到 Redis Stream。
 
+        流程：
+        1. 組裝事件 JSON（含 event_id / trace_id / timestamp / topic / event_type / producer）
+        2. XADD 寫入 Redis Stream（maxlen=10000 限制 stream 長度）
+        3. PUBLISH 到 Pub/Sub 頻道（供 WebSocket 實時推送）
+
         Returns:
-            event_id (str): 由 Redis 自動生成的 Stream entry ID
+            entry_id (str): 由 Redis 自動生成的 Stream entry ID（格式: timestamp-sequence）
         """
         event = {
             "event_id": str(uuid.uuid4()),
@@ -101,7 +106,11 @@ class EventBus:
         return entry_id
 
     async def ensure_consumer_group(self, topic: str, group: str):
-        """確保消費者組存在（冪等）。"""
+        """確保消費者組存在（冪等）。
+
+        XGROUP CREATE 若 group 已存在會回傳 BUSYGROUP error，
+        捕獲後略過（不拋出異常），保證多次呼叫安全。
+        """
         stream_key = self._stream_key(topic)
         try:
             await self.redis.xgroup_create(stream_key, group, id="0", mkstream=True)
@@ -118,7 +127,11 @@ class EventBus:
         count: int = 10,
         block_ms: int = 5000,
     ) -> list[tuple[str, dict]]:
-        """從消費者組消費事件。
+        """從消費者組消費事件（XREADGROUP）。
+
+        - 只讀取新增事件（stream key ">" 表示未投遞給此 group 的消息）
+        - block_ms: 若無新事件，block 指定毫秒後回傳空列表
+        - 回傳前自動反序列化 payload/meta JSON 欄位
 
         Returns:
             list of (entry_id, event_dict)
@@ -135,7 +148,7 @@ class EventBus:
         if results:
             for _stream, messages in results:
                 for entry_id, data in messages:
-                    # 反序列化 JSON 字段
+                    # 反序列化 JSON 字段 — Redis Stream 只存字串
                     if "payload" in data:
                         data["payload"] = json.loads(data["payload"])
                     if "meta" in data:
@@ -144,15 +157,14 @@ class EventBus:
         return events
 
     async def ack(self, topic: str, group: str, entry_id: str):
-        """確認消費 — ACK 後事件不會被重新投遞。"""
+        """確認消費 — XACK 後事件不會被重新投遞。
+
+        必須在業務邏輯成功處理後呼叫，否則事件會停留在 pending 列表，
+        被 claim_stale 重新分配給其他 consumer。
+        """
         stream_key = self._stream_key(topic)
         await self.redis.xack(stream_key, group, entry_id)
         log.debug(f"✅ ACK {stream_key} [{entry_id}] group={group}")
-
-    async def get_pending(self, topic: str, group: str, count: int = 10) -> list:
-        """查看未 ACK 的 pending 事件（用於診斷和恢復）。"""
-        stream_key = self._stream_key(topic)
-        return await self.redis.xpending_range(stream_key, group, min="-", max="+", count=count)
 
     async def claim_stale(
         self,
@@ -162,7 +174,11 @@ class EventBus:
         min_idle_ms: int = 60000,
         count: int = 10,
     ) -> list[tuple[str, dict]]:
-        """認領超時的 pending 事件（消費者崩潰恢復）。"""
+        """認領超時的 pending 事件（XAUTOCLAIM）— 消費者崩潰恢復。
+
+        當 consumer 崩潰後，其 pending 事件在超過 min_idle_ms 後，
+        可被其他 consumer 透過 XAUTOCLAIM 接管，防止事件永久遺失。
+        """
         stream_key = self._stream_key(topic)
         results = await self.redis.xautoclaim(
             stream_key, group, consumer, min_idle_time=min_idle_ms, start_id="0-0", count=count

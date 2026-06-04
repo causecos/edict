@@ -34,11 +34,18 @@ class TaskService:
     def __init__(self, db: AsyncSession, event_bus=None):
         self.db = db
         # event_bus 保留用於 request_dispatch 等直接發布場景
+        # 常規事件（create/transition）走 outbox 模式，不直接呼叫 bus.publish
         self.bus = event_bus
 
     @staticmethod
     def _report_text(task: Task, fallback: str = "") -> str:
-        """統一「回奏內容」來源，供 DB 欄位與事件 payload 共用。"""
+        """統一「回奏內容」來源，供 DB 欄位與事件 payload 共用。
+
+        解析優先級：
+        1. progress_log 最後一筆的 text/content 欄位
+        2. task 的 now/output/ac/description 欄位（依序 fallback）
+        3. 傳入的 fallback 參數
+        """
         progress_log = task.progress_log or []
         if progress_log:
             last = progress_log[-1]
@@ -54,7 +61,10 @@ class TaskService:
 
     @classmethod
     def _dispatch_snapshot(cls, task: Task, *, message: str = "") -> dict[str, Any]:
-        """生成可直接給 Event Bus / Dispatcher 的任務快照。"""
+        """生成可直接給 Event Bus / Dispatcher 的任務快照。
+
+        包含所有派遣所需欄位，report/message 欄位供 Agent prompt 注入使用。
+        """
         report = cls._report_text(task, fallback=message)
         return {
             "task_id": str(task.task_id),
@@ -116,7 +126,14 @@ class TaskService:
         initial_state: TaskState = TaskState.Taizi,
         meta: dict | None = None,
     ) -> Task:
-        """創建任務，事件寫入 outbox 表（同一事務原子提交）。"""
+        """創建任務，事件寫入 outbox 表（同一事務原子提交）。
+
+        Transactional Outbox 保證：
+        - task INSERT 與 outbox INSERT 在同一個 DB 事務中
+        - commit 成功 → 兩者同時持久化
+        - commit 失敗 → 兩者同時回滾
+        - OutboxRelay worker 異步投遞事件到 Redis Stream
+        """
         now = datetime.now(timezone.utc)
         trace_id = str(uuid.uuid4())
         target_org = Task.org_for_state(initial_state, assignee_org)
@@ -152,6 +169,7 @@ class TaskService:
             meta=task_meta,
         )
         self.db.add(task)
+        # flush 讓 task.task_id 可被 outbox trace_id 參照
         await self.db.flush()
 
         # 事件寫入 outbox — 與 task 同一事務，原子提交
@@ -183,7 +201,14 @@ class TaskService:
         agent: str = "system",
         reason: str = "",
     ) -> Task:
-        """執行狀態流轉。SELECT FOR UPDATE 防止並發 flow_log 丟失。"""
+        """執行狀態流轉。SELECT FOR UPDATE 防止並發 flow_log 丟失。
+
+        並發安全機制：
+        1. SELECT ... FOR UPDATE — 行級排他鎖，串行化相同 task_id 的寫入
+        2. 校驗 STATE_TRANSITIONS 矩陣，非法轉換拋 ValueError
+        3. 更新 state/org/flow_log，在同一事務內寫入 outbox 事件
+        4. commit 釋放行鎖
+        """
         # 行級排他鎖 — 串行化同一任務的並發寫入
         stmt = select(Task).where(Task.task_id == task_id).with_for_update()
         result = await self.db.execute(stmt)
@@ -193,7 +218,7 @@ class TaskService:
 
         old_state = task.state
 
-        # 校驗合法流轉
+        # 校驗合法流轉 — 比對 STATE_TRANSITIONS 矩陣
         allowed = STATE_TRANSITIONS.get(old_state, set())
         if new_state not in allowed:
             raise ValueError(
@@ -264,7 +289,10 @@ class TaskService:
         target_agent: str,
         message: str = "",
     ):
-        """發布 task.dispatch 事件到 outbox，由 OutboxRelay 投遞後 DispatchWorker 消費。"""
+        """發布 task.dispatch 事件到 outbox，由 OutboxRelay 投遞後 DispatchWorker 消費。
+
+        不直接呼叫 bus.publish — 走 outbox 確保事件持久化。
+        """
         task = await self._get_task(task_id)
         outbox = OutboxEvent(
             topic=TOPIC_TASK_DISPATCH,
@@ -365,6 +393,7 @@ class TaskService:
     # ── 查詢 ──
 
     async def get_task(self, task_id: uuid.UUID) -> Task:
+        """依 task_id 查詢單一任務，不存在時拋 ValueError。"""
         return await self._get_task(task_id)
 
     async def list_tasks(
@@ -375,6 +404,11 @@ class TaskService:
         limit: int = 50,
         offset: int = 0,
     ) -> list[Task]:
+        """查詢任務列表，支援多維度過濾與分頁。
+
+        所有過濾條件為 AND 組合，未填則忽略該維度。
+        排序：created_at DESC（最新優先）。
+        """
         stmt = select(Task)
         conditions = []
         if state is not None:

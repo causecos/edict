@@ -20,9 +20,9 @@ from ..services.event_bus import EventBus
 
 log = logging.getLogger("edict.outbox_relay")
 
-MAX_ATTEMPTS = 5
-BATCH_SIZE = 50
-POLL_INTERVAL = 1.0  # 秒
+MAX_ATTEMPTS = 5       # 最大重試次數，超過後進入 DLQ
+BATCH_SIZE = 50        # 每輪處理的事件數上限
+POLL_INTERVAL = 1.0    # 無事件時輪詢間隔（秒）
 
 
 class OutboxRelay:
@@ -52,9 +52,17 @@ class OutboxRelay:
         log.info("Outbox Relay stopped")
 
     async def _relay_cycle(self) -> int:
-        """處理一批未投遞事件。返回本輪處理數量。"""
+        """處理一批未投遞事件。返回本輪處理數量。
+
+        查詢策略：
+        - SELECT ... FOR UPDATE SKIP LOCKED: 允許多 relay 實例並行
+          每個實例鎖定不同的批次，不會互相阻塞
+        - 排序 by id 保證 FIFO 投遞順序
+        - 每筆事件投遞成功後標記 published=True + published_at
+        - 投遞失敗累計 attempts，超過 MAX_ATTEMPTS 則寫入 dead_letter topic
+        """
         async with async_session() as db:
-            # FOR UPDATE SKIP LOCKED 允許多 relay 實例並行
+            # FOR UPDATE SKIP LOCKED 允許多 relay 實例並行，各自鎖定不同批次
             stmt = (
                 select(OutboxEvent)
                 .where(OutboxEvent.published == False)  # noqa: E712

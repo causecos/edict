@@ -11,7 +11,14 @@ from sqlalchemy.engine.url import make_url
 
 
 def _generate_secret() -> str:
-    """生成高強度隨機密鑰（43 字元 base64）。"""
+    """生成高強度隨機密鑰（256-bit 熵，43 字元 base64）。
+
+    使用 secrets.token_urlsafe(32)：
+    - 32 bytes 隨機數 = 256-bit 安全強度
+    - base64url 編碼 → 43 字元，適合直接放入 URL / 環境變數
+    - 用於 postgres_password / secret_key 的預設值
+    - 生產環境應透過環境變數覆蓋，不依賴預設值
+    """
     return secrets.token_urlsafe(32)
 
 
@@ -46,6 +53,11 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        """非同步資料庫連線 URL（postgresql+asyncpg://）。
+
+        優先使用 DATABASE_URL 環境變數（完整覆蓋），
+        否則以 postgres_* 元件組合。
+        """
         if self.database_url_override:
             return self.database_url_override
         return (
@@ -55,7 +67,10 @@ class Settings(BaseSettings):
 
     @property
     def database_url_sync(self) -> str:
-        """同步 URL，供 Alembic 使用。"""
+        """同步資料庫連線 URL（postgresql://），供 Alembic 遷移使用。
+
+        從 DATABASE_URL 或 async URL 剝離 asyncpg driver 後綴。
+        """
         if self.database_url_override:
             url = make_url(self.database_url_override)
             drivername = url.drivername.split("+", 1)[0]

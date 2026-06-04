@@ -75,6 +75,11 @@ class TaskOut(BaseModel):
 async def get_task_service(
     db: AsyncSession = Depends(get_db),
 ) -> TaskService:
+    """建立 TaskService 實例，注入 DB session 與 EventBus。
+
+    透過 FastAPI Depends 機制，每個 request 自動取得獨立的 DB session
+    （由 get_db 的 async_scoped_session 管理生命週期）。
+    """
     bus = await get_event_bus()
     return TaskService(db, bus)
 
@@ -90,7 +95,11 @@ async def list_tasks(
     offset: int = Query(default=0, ge=0),
     svc: TaskService = Depends(get_task_service),
 ):
-    """獲取任務列表。"""
+    """獲取任務列表 — 支援多重過濾與分頁。
+
+    查詢參數均可選：state/assignee_org/priority 任一未填則不過濾該維度。
+    limit 上限 200，防止單次查詢載入過多資料。
+    """
     task_state = TaskState(state) if state else None
     tasks = await svc.list_tasks(
         state=task_state,
@@ -104,13 +113,16 @@ async def list_tasks(
 
 @router.get("/live-status")
 async def live_status(svc: TaskService = Depends(get_task_service)):
-    """兼容舊 live_status.json 格式的全局狀態。"""
+    """兼容舊 live_status.json 格式的全局狀態。
+
+    將 active/completed 任務分開回傳，格式與舊版 Dashboard 預期一致。
+    """
     return await svc.get_live_status()
 
 
 @router.get("/stats")
 async def task_stats(svc: TaskService = Depends(get_task_service)):
-    """任務統計。"""
+    """任務統計 — 按狀態彙總數量。"""
     stats = {}
     for s in TaskState:
         stats[s.value] = await svc.count_tasks(s)
@@ -123,7 +135,11 @@ async def create_task(
     body: TaskCreate,
     svc: TaskService = Depends(get_task_service),
 ):
-    """創建新任務。"""
+    """創建新任務 — 需 API Key 驗證。
+
+    寫入 task 的同時會在同一個事務中寫入 outbox 事件，
+    確保 task 建立與事件發佈的原子性。
+    """
     task = await svc.create_task(
         title=body.title,
         description=body.description,
@@ -141,7 +157,7 @@ async def get_task(
     task_id: uuid.UUID,
     svc: TaskService = Depends(get_task_service),
 ):
-    """獲取任務詳情。"""
+    """獲取任務詳情 — 依 task_id (UUID) 查詢。"""
     try:
         task = await svc.get_task(task_id)
         return task.to_dict()
@@ -155,7 +171,11 @@ async def transition_task(
     body: TaskTransition,
     svc: TaskService = Depends(get_task_service),
 ):
-    """執行狀態流轉。"""
+    """執行狀態流轉 — 需 API Key 驗證。
+
+    校驗 new_state 是否為合法的 TaskState 枚舉值，
+    再由 TaskService.transition_state 檢查狀態轉換矩陣。
+    """
     try:
         new_state = TaskState(body.new_state)
     except ValueError:
@@ -180,7 +200,11 @@ async def dispatch_task(
     message: str = Query(default="", description="派發消息"),
     svc: TaskService = Depends(get_task_service),
 ):
-    """手動派發任務給指定 agent。"""
+    """手動派發任務給指定 agent — 需 API Key 驗證。
+
+    事件寫入 outbox 後，由 OutboxRelay 投遞至 Redis Stream，
+    DispatchWorker 消費後執行實際派發。
+    """
     try:
         await svc.request_dispatch(task_id, agent, message)
         return {"message": "dispatch requested", "agent": agent}

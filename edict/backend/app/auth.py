@@ -15,14 +15,17 @@ from .config import get_settings
 
 log = logging.getLogger("edict.auth")
 
-# Bearer token scheme for API key
+# Bearer token scheme for API key — auto_error=False 避免未帶 token 時自動 403
+# 實際驗證邏輯由 require_api_key dependency 控制（未設定 API_KEY 時略過）
 _api_key_scheme = HTTPBearer(auto_error=False)
 
 
 def _extract_api_key(request: Request) -> str | None:
     """從 request 中提取 API Key。
 
-    優先級：Authorization: Bearer <key> > X-API-Key header
+    優先級：Authorization: Bearer *** > X-API-Key header
+    X-API-Key 放在前面方便 curl 腳本直接使用。
+    提取後做 strip() 防止前後空白導致比對失敗。
     """
     # Try X-API-Key header first (simpler for scripts)
     api_key = request.headers.get("X-API-Key")
@@ -38,13 +41,16 @@ def _extract_api_key(request: Request) -> str | None:
 
 
 def require_api_key(request: Request) -> str:
-    """FastAPI dependency：驗證 API Key。
+    """FastAPI dependency：驗證 API Key，用於保護 POST/PUT/DELETE 端點。
 
-    用於保護 POST/PUT/DELETE 端點。
-    若未設定 API_KEY 環境變數則略過驗證（開發/向後相容模式）。
+    驗證流程：
+    1. 若未設定 API_KEY → 開發模式，略過驗證（logging warning）
+    2. 從 request 提取 key（優先 X-API-Key，其次 Bearer）
+    3. 使用 secrets.compare_digest 常數時間比對，防止 timing attack
+    4. 驗證失敗 → 401 Unauthorized
 
     Returns:
-        通過驗證的 API key
+        通過驗證的 API key（字串）
     """
     settings = get_settings()
     expected_key = settings.api_key
@@ -62,6 +68,7 @@ def require_api_key(request: Request) -> str:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # secrets.compare_digest: 常數時間字串比對，防止 timing side-channel
     if not secrets.compare_digest(provided_key, expected_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -74,5 +81,8 @@ def require_api_key(request: Request) -> str:
 
 @lru_cache
 def generate_api_key() -> str:
-    """生成一個安全的隨機 API Key（僅供初次設定參考）。"""
+    """生成一個安全的隨機 API Key（256-bit，僅供初次設定參考）。
+
+    使用 lru_cache 確保同一次啟動只生成一個值。
+    """
     return secrets.token_urlsafe(32)

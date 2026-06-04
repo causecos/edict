@@ -531,8 +531,10 @@ class DispatchWorker:
                     raise DispatchError("openclaw binary missing", retryable=False)
                 elif result["returncode"] in (1, 2):
                     # rc=1 通常是 CLI 參數/語法錯誤，rc=2 通常是誤用，不應重試
+                    stderr_preview = stderr[:500] if stderr else "(empty)"
+                    stdout_preview = result.get("stdout", "")[:500] if result.get("stdout") else "(empty)"
                     raise DispatchError(
-                        f"Agent failed: rc={result['returncode']}", retryable=False
+                        f"Agent failed: rc={result['returncode']}, stderr={stderr_preview}, stdout={stdout_preview}", retryable=False
                     )
                 else:
                     raise DispatchError(
@@ -647,6 +649,7 @@ class DispatchWorker:
             except Exception as e:
                 log.warning(f"Failed to write context file for {task_id}: {e}")
 
+        log.info(f"Dispatch cmd: openclaw agent --agent {agent} -m (len={len(message)} chars), task={task_id}")
         log.debug(f"Executing: {' '.join(cmd)}")
 
         def _run():

@@ -20,8 +20,10 @@ import signal
 import uuid
 from datetime import datetime, timezone, timedelta
 
+from sqlalchemy import select
+
 from ..db import async_session
-from ..models.task import TaskState, STATE_AGENT_MAP, ORG_AGENT_MAP, TERMINAL_STATES
+from ..models.task import Task, TaskState, STATE_AGENT_MAP, ORG_AGENT_MAP, TERMINAL_STATES
 from ..services.event_bus import (
     EventBus,
     TOPIC_TASK_CREATED,
@@ -435,8 +437,6 @@ class OrchestratorWorker:
 
         async with async_session() as session:
             svc = TaskService(session)
-            from sqlalchemy import select
-            from ..models.task import Task
             stmt = select(Task).where(
                 Task.state.in_(NON_TERMINAL_STATES),
                 Task.updated_at < threshold,

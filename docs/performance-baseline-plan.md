@@ -7,7 +7,7 @@
 
 | 指标 | 工具 | 方法 |
 |------|------|------|
-| 首屏加载 (LCP) | Lighthouse CLI | `npx lighthouse http://localhost:3926 --output=json` |
+| 首屏加载 (LCP) | Lighthouse CLI | `npx lighthouse http://localhost:${DASHBOARD_PORT:-7891} --output=json` |
 | 首次可交互 (TTI) | Lighthouse CLI | 同上 |
 | Bundle 大小 | `npm run build` | 记录 `dist/` 总体积及各 chunk |
 | API P95 响应时间 | autocannon / k6 | `GET /api/tasks` 1000次请求 |

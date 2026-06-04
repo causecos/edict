@@ -158,7 +158,6 @@ class TaskService:
                     "to": initial_state.value,
                     "agent": "system",
                     "reason": "任務創建",
-                    "remark": "任務創建",
                     "ts": now.isoformat(),
                     "at": now.isoformat(),
                 }
@@ -240,7 +239,6 @@ class TaskService:
             "to": new_state.value,
             "agent": agent,
             "reason": reason,
-            "remark": reason,
             "ts": datetime.now(timezone.utc).isoformat(),
             "at": datetime.now(timezone.utc).isoformat(),
         }

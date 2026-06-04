@@ -306,10 +306,12 @@ def _normalize_backend_live_status(payload):
         return x.get('updatedAt') or x.get('updated_at') or ''
 
     arr = sorted(by_id.values(), key=_ts, reverse=True)
+    total_count = len(arr)
     return {
         'tasks': arr,
         'lastSyncAt': payload.get('last_updated') or now_iso(),
         'source': 'db-api',
+        'syncStatus': {'ok': True, 'syncedAt': now_iso(), 'count': total_count},
     }
 
 
@@ -320,6 +322,8 @@ def _live_status_from_json():
     if not isinstance(data, dict):
         data = {'tasks': []}
     data.setdefault('source', 'json')
+    tasks = data.get('tasks', [])
+    data['syncStatus'] = {'ok': True, 'syncedAt': now_iso(), 'count': len(tasks)}
     return data
 
 
@@ -3196,7 +3200,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description='三省六部看板服務器')
-    parser.add_argument('--port', type=int, default=7891)
+    parser.add_argument('--port', type=int, default=int(os.environ.get('DASHBOARD_PORT', os.environ.get('EDICT_DASHBOARD_PORT', '7891'))))
     parser.add_argument('--host', default='0.0.0.0')
     parser.add_argument('--cors', default=None, help='Allowed CORS origin (default: reflect request Origin header)')
     args = parser.parse_args()

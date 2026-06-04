@@ -1031,6 +1031,13 @@ async function fetchJ(u){const r=await fetch(u,{cache:'no-store'});if(!r.ok)thro
 async function postJ(u,d){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});return r.json()}
 function toast(msg,type='ok',ms=3000){const el=document.createElement('div');el.className=`toast ${type}`;el.textContent=msg;document.getElementById('toaster').appendChild(el);setTimeout(()=>el.remove(),ms)}
 const STATE_KEY={Inbox:'state.inbox',Pending:'state.pending',Taizi:'state.taizi',Zhongshu:'state.zhongshu',Menxia:'state.menxia',Assigned:'state.assigned',Doing:'state.doing',Review:'state.review',Done:'state.done',Blocked:'state.blocked',Cancelled:'state.cancelled',Next:'state.next'};
+// 用於 renderSessions / renderMemorials 等直接取狀態名的地方
+const STATE_LABEL = {
+  Inbox: '📥 待處理', Pending: '📥 待處理', Taizi: '🤴 太子分揀',
+  Zhongshu: '📜 中書起草', Menxia: '🔍 門下審議',
+  Assigned: '📮 已派發', Doing: '⚙️ 執行中', Review: '🔎 匯總審查',
+  Done: '✅ 完成', Blocked: '🚫 阻塞', Cancelled: '❌ 取消', Next: '⏭ 待下輪'
+};
 // 根據輪次動態生成狀態標籤
 function stateLabel(t){
   const r = t.review_round||0;
@@ -1063,7 +1070,7 @@ function animateCounter(el, target, format=v=>String(v)) {
 
 /* ══ TASK CLASSIFICATION ══ */
 // 皇上的旨意：JJC-* 開頭，有真實標題
-function isEdict(t){ return /^JJC-/i.test(t.id||'') }
+function isEdict(t){ return /^JJC-/i.test(t.id||'') || /^[0-9a-f]{8}-/i.test(t.id||'') }
 // 系統會話：OC-* / MC-* 開頭
 function isSession(t){ return /^(OC-|MC-)/i.test(t.id||'') }
 // 歸檔判定：僅檢查顯式 archived 標記（Done/Cancelled 留在活躍視圖，等用戶手動歸檔）
@@ -2061,7 +2068,10 @@ async function submitAddSkill(e, agentId, agentLabel){
 }
 
 /* ══ DATA LOADING ══ */
+let _loadLiveBusy = false;
 async function loadLive(){
+  if(_loadLiveBusy) return;
+  _loadLiveBusy = true;
   try{
     liveStatus=await fetchJ(API+'/live-status');
     // 提前加載官員數據，供省部調度 Tab 使用
@@ -2079,6 +2089,8 @@ async function loadLive(){
   }catch(e){
     document.getElementById('chip-sync').textContent=__('header.syncErr');
     document.getElementById('chip-sync').className='chip err';
+  } finally {
+    _loadLiveBusy = false;
   }
 }
 async function loadAgentConfig(){
@@ -2092,13 +2104,20 @@ async function loadAgentConfig(){
     document.getElementById('model-grid').innerHTML='<div class="empty" style="grid-column:1/-1">⚠️ 請先啓動本地服務器：<code>python3 dashboard/server.py</code></div>';
   }
 }
+let _loadAllBusy = false;
 async function loadAll(){
-  await loadLive();
-  if(['models','skills'].includes(activeTab))await loadAgentConfig();
-  if(activeTab==='sessions')renderSessions(liveStatus?liveStatus.tasks:[]);
-  if(activeTab==='memorials')renderMemorials();
-  if(activeTab==='templates')renderTemplates();
-  if(activeTab==='morning' && !_newsPolling) loadMorning();
+  if(_loadAllBusy) return;
+  _loadAllBusy = true;
+  try {
+    await loadLive();
+    if(['models','skills'].includes(activeTab))await loadAgentConfig();
+    if(activeTab==='sessions')renderSessions(liveStatus?liveStatus.tasks:[]);
+    if(activeTab==='memorials')renderMemorials();
+    if(activeTab==='templates')renderTemplates();
+    if(activeTab==='morning' && !_newsPolling) loadMorning();
+  } finally {
+    _loadAllBusy = false;
+  }
 }
 
 /* ══ SESSIONS / 小任務 ══ */
@@ -3104,7 +3123,7 @@ function exportMemorial(taskIdJson){
   md += `\n`;
   md += `## 流轉記錄\n\n`;
   for(const f of fl){
-    md += `- **${f.from}** → **${f.to}**  \n  ${f.remark}  \n  _${(f.at||'').substring(0,19)}_\n\n`;
+    md += `- **${f.from}** → **${f.to}**  \n  ${f.remark||f.reason||""}  \n  _${(f.at||'').substring(0,19)}_\n\n`;
   }
   if(t.output && t.output!=='-') md += `## 產出物\n\n\`${t.output}\`\n`;
   navigator.clipboard.writeText(md).then(()=>toast('✅ 奏摺已複製爲 Markdown','ok')).catch(()=>toast('複製失敗','err'));

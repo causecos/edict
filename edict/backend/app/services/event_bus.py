@@ -239,6 +239,26 @@ class EventBus:
                     events.append((topic, entry_id, data))
         return events
 
+    async def get_pending(
+        self,
+        topic: str,
+        group: str,
+        count: int = 20,
+    ) -> list[dict]:
+        """列出 pending 列表中的事件（診斷用）。
+
+        透過 XPENDING RANGE 查詢，回傳未 ACK 的消息列表。
+        """
+        stream_key = self._stream_key(topic)
+        try:
+            results = await self.redis.xpending_range(
+                stream_key, group, min="-", max="+", count=count
+            )
+            return list(results) if results else []
+        except aioredis.ResponseError:
+            # group 可能尚未建立
+            return []
+
     async def get_delivery_count(self, topic: str, group: str, entry_id: str) -> int:
         """獲取某條消息的累計投遞次數。"""
         stream_key = self._stream_key(topic)

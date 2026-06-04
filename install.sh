@@ -406,7 +406,55 @@ first_sync() {
   log "首次同步完成"
 }
 
-# ── Step 6: 重启 Gateway ────────────────────────────────────
+# ── Step 6: 安裝 systemd 服務 ─────────────────────────────────
+install_services() {
+  info "安裝 systemd user 服務..."
+
+  SVC_DIR="${HOME}/.config/systemd/user"
+  mkdir -p "$SVC_DIR"
+
+  SVC_COUNT=0
+  for svc in edict-backend edict-dashboard edict-dispatch-worker edict-orchestrator edict-outbox-relay; do
+    src="$REPO_DIR/systemd/${svc}.service"
+    if [ -f "$src" ]; then
+      # 展開 %h 為實際 HOME
+      sed "s|%h|$HOME|g" "$src" > "$SVC_DIR/${svc}.service"
+      SVC_COUNT=$((SVC_COUNT + 1))
+    else
+      warn "模板不存在: $src"
+    fi
+  done
+
+  systemctl --user daemon-reload
+  log "已安裝 $SVC_COUNT 個 systemd 服務 → $SVC_DIR"
+
+  echo ""
+  info "常用 systemd 指令："
+  echo "   systemctl --user start edict-backend    # 啟動後端"
+  echo "   systemctl --user start edict-dashboard  # 啟動看板"
+  echo "   systemctl --user status edict-*         # 查看狀態"
+  echo "   systemctl --user enable edict-backend   # 開機自啟"
+}
+
+# ── Step 7: 初始化 .env ─────────────────────────────────────
+init_env() {
+  ENV_FILE="$REPO_DIR/edict/backend/.env"
+  ENV_EXAMPLE="$REPO_DIR/edict/backend/.env.example"
+
+  if [ -f "$ENV_FILE" ]; then
+    log ".env 已存在，跳過"
+    return
+  fi
+
+  if [ -f "$ENV_EXAMPLE" ]; then
+    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    warn ".env 已從 .env.example 建立，請編輯填入實際密碼："
+    echo "   $ENV_FILE"
+  else
+    warn "未找到 .env.example，請手動建立 $ENV_FILE"
+  fi
+}
+# ── Step 8: 重启 Gateway ────────────────────────────────────
 restart_gateway() {
   info "重启 OpenClaw Gateway..."
   if openclaw gateway restart 2>/dev/null; then
@@ -427,6 +475,8 @@ link_resources
 setup_visibility
 sync_auth
 build_frontend
+install_services
+init_env
 first_sync
 restart_gateway
 
@@ -439,9 +489,12 @@ echo "下一步："
 echo "  1. 配置 API Key（如尚未配置）:"
 echo "     openclaw agents add taizi     # 按提示输入 Anthropic API Key"
 echo "     ./install.sh                  # 重新运行以同步到所有 Agent"
-echo "  2. 启动数据刷新循环:  bash scripts/run_loop.sh &"
-echo "  3. 启动看板服务器:    python3 \"\$REPO_DIR/dashboard/server.py\""
-echo "  4. 打开看板:          http://127.0.0.1:7891"
+echo "  2. 啟動後端服務:"
+echo "     systemctl --user start edict-backend edict-dashboard"
+echo "     systemctl --user start edict-orchestrator edict-dispatch-worker edict-outbox-relay"
+echo "  3. 或使用一鍵腳本:  bash edict.sh start-all"
+
+echo "  4. 打開看板:          http://127.0.0.1:7891"
 echo ""
 warn "首次安装必须配置 API Key，否则 Agent 会报错"
 info "文档: docs/getting-started.md"

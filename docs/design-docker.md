@@ -6,7 +6,7 @@
 
 ```bash
 docker compose up
-# 浏览器打开 http://localhost:3926 即可体验完整看板
+# 浏览器打开 http://localhost:7891 即可体验完整看板
 ```
 
 ## 2. Dockerfile
@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY edict/ ./edict/
 COPY docker/demo_data/ ./data/
 COPY --from=frontend /app/frontend/dist ./edict/frontend/dist
-EXPOSE 3926
+EXPOSE 7891
 ENV DEMO_MODE=true
 CMD ["python", "edict/server.py"]
 ```
@@ -39,11 +39,11 @@ services:
   dashboard:
     build: .
     ports:
-      - "3926:3926"
+      - "7891:7891"
     environment:
       - DEMO_MODE=true
       - HOST=0.0.0.0
-      - PORT=3926
+      - PORT=7891
     volumes:
       - dashboard-data:/app/data
     restart: unless-stopped
@@ -102,6 +102,6 @@ jobs:
 git clone https://github.com/xxx/openclaw-sansheng-liubu.git
 cd openclaw-sansheng-liubu
 docker compose up
-# 打开 http://localhost:3926
+# 打开 http://localhost:7891
 ​```
 ```

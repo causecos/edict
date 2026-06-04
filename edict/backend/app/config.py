@@ -34,6 +34,36 @@ class Settings(BaseSettings):
     )
     database_url_override: str | None = Field(default=None, alias="DATABASE_URL")
 
+    # ── 任務調度 ──
+    stall_threshold_sec: int = Field(
+        default=600,
+        description="任務停滯閾值（秒），超過此時長無心跳視爲停滯",
+    )
+    stall_check_interval_sec: int = Field(
+        default=60,
+        description="停滯檢查間隔（秒）",
+    )
+    max_stall_retries: int = Field(
+        default=2,
+        description="停滯任務最大重試次數",
+    )
+    max_escalation_level: int = Field(
+        default=3,
+        description="最大升級層級",
+    )
+    stall_retry_backoff: list[int] = Field(
+        default=[30, 60, 120],
+        description="重試退避時間（秒），每次重試後的等待時間",
+    )
+    dispatch_timeout_sec: int = Field(
+        default=300,
+        description="派發子進程超時（秒）",
+    )
+    dispatch_max_retries: int = Field(
+        default=3,
+        description="派發最大重試次數",
+    )
+
     # ── Redis ──
     redis_url: str = "redis://localhost:6379/0"
 
@@ -72,9 +102,9 @@ class Settings(BaseSettings):
         從 DATABASE_URL 或 async URL 剝離 asyncpg driver 後綴。
         """
         if self.database_url_override:
-            url = make_url(self.database_url_override)
-            drivername = url.drivername.split("+", 1)[0]
-            return str(url.set(drivername=drivername))
+            return make_url(self.database_url_override).set(
+                drivername="postgresql"
+            ).render_as_string(hide_password=False)
         return (
             f"postgresql://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"

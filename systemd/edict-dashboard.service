@@ -1,0 +1,15 @@
+[Unit]
+Description=Edict Dashboard Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/ai-base/core/edict
+ExecStart=/usr/bin/python3 dashboard/server.py --host 0.0.0.0
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

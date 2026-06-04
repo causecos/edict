@@ -26,7 +26,7 @@
   <img src="https://img.shields.io/badge/Dashboard-Real--time-F59E0B?style=flat-square" alt="Dashboard">
   <img src="https://img.shields.io/badge/License-MIT-22C55E?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Frontend-React_18-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React">
-  <img src="https://img.shields.io/badge/Backend-FastAPI-EC4899?style=flat-square" alt="Zero Backend Dependencies">
+  <img src="https://img.shields.io/badge/Backend-FastAPI_+_PostgreSQL_+_Redis-EC4899?style=flat-square" alt="FastAPI + PostgreSQL + Redis">
 </p>
 
 <p align="center">
@@ -63,6 +63,11 @@
 - **繁體中文本地化**：新增 `scripts/fanti_convert.py`，Dashboard 全介面支援繁體中文。
 - **死碼清理**：移除 35 個 `_fanti` 重複檔、`channels/__init__.py` 殘留程式碼。
 - **穩定性修復**：已完成相容層與同步路徑修復，當前測試結果為 **225 passed**。
+- **Dashboard 任務分類修正**：`isEdict()` 現可正確辨識 UUID 格式任務，不再誤歸類為小任務。
+- **系統部署自動化**：新增 `systemd/` 模板（5 個 user service）與 `.env.example`，`install.sh` 支援 `install-services` + `init_env`。
+- **後端設定集中化**：`config.py` 擴充 7 個 Settings 欄位（stall 閾值、dispatch 超時、重試次數、Dashboard port 等），Worker 不再 hardcode。
+- **Dashboard 穩定性強化**：修復 `STATE_LABEL` 未定義、`loadAll()` 競爭條件、`isEdict()` 只匹配 JJC-、`EventBus.get_pending` 缺失、`flow_log` 重複欄位。
+- **Dashboard port 環境變數化**：支援 `DASHBOARD_PORT` / `EDICT_DASHBOARD_PORT`，fallback 7891。
 
 ```bash
 # 查看目前資料源模式
@@ -800,9 +805,39 @@ python3 scripts/skill_manager.py import-official-hub --agents menxia
 
 </details>
 
----
-## �🗺️ Roadmap
+<details>
+<summary><b>❌ 修改後端程式後 API 回傳舊資料 / agent 列表不更新</b></summary>
 
+**症狀**：修改了 `backend/app/api/agents.py`、`config.py` 或其他 Python 檔後，API 仍回傳修改前的內容。例如 agent 數量不對、欄位值沒變。
+
+**原因**：Python 會將 `.py` 編譯為 `__pycache__/*.pyc` 快取。當 `systemctl restart` 後端時，若 `.pyc` 時間戳比 `.py` 新（或因多版本 Python 共存導致跨版本快取混淆），uvicorn 會載入舊 bytecode 而非新原始碼。
+
+**解決**：修改任何後端 Python 檔後，必須清除快取再重啟：
+
+```bash
+# 1. 清除所有 __pycache__
+find ~/ai-base/core/edict/edict/backend -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
+
+# 2. 重啟後端
+systemctl --user restart edict-backend
+
+# 3. 驗證（以 agents 為例）
+curl -s http://127.0.0.1:8000/api/agents | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print(f'Agent count: {len(d[\"agents\"])}')  # 應為 11
+for a in d['agents']:
+    print(f'  {a[\"id\"]:12s} {a[\"name\"]}')
+"
+```
+
+**預防**：若你同時安裝了多個 Python 版本（如 3.11 + 3.12），兩者會各自產生 `.pyc`，更容易混淆。建議在 `edict.sh` 或部署腳本中加入自動清除快取的步驟。
+
+</details>
+
+---
+
+## �🗺️ Roadmap
 > 完整路线图及参与方式：[ROADMAP.md](ROADMAP.md)
 
 ### Phase 1 — 核心架构 ✅

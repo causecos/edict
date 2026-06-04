@@ -1,0 +1,16 @@
+[Unit]
+Description=Edict Backend API Server
+After=network.target redis.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/ai-base/core/edict/edict/backend
+EnvironmentFile=%h/ai-base/core/edict/edict/backend/.env
+ExecStart=/usr/bin/python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

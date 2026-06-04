@@ -544,9 +544,9 @@ class DispatchWorker:
                     TOPIC_TASK_DISPATCH, GROUP, entry_id
                 )
 
-                if e.retryable and delivery_count < 3:
+                if e.retryable and delivery_count < get_settings().dispatch_max_retries:
                     log.warning(
-                        f"🔄 Retryable failure for {task_id}, attempt {delivery_count + 1}/3: {e}"
+                        f"🔄 Retryable failure for {task_id}, attempt {delivery_count + 1}/{get_settings().dispatch_max_retries}: {e}"
                     )
                     return  # 不 ACK → Redis 自動重投遞
 
@@ -655,7 +655,7 @@ class DispatchWorker:
                     cmd,
                     capture_output=True,
                     text=True,
-                    timeout=300,
+                    timeout=settings.dispatch_timeout_sec,
                     env=env,
                     cwd=getattr(settings, "openclaw_project_dir", None) or None,
                 )
@@ -665,7 +665,7 @@ class DispatchWorker:
                     "stderr": proc.stderr[-2000:] if proc.stderr else "",
                 }
             except subprocess.TimeoutExpired:
-                return {"returncode": -1, "stdout": "", "stderr": "TIMEOUT after 300s"}
+                return {"returncode": -1, "stdout": "", "stderr": f"TIMEOUT after {settings.dispatch_timeout_sec}s"}
             except FileNotFoundError:
                 return {"returncode": -1, "stdout": "", "stderr": "openclaw command not found"}
             finally:

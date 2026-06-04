@@ -1,0 +1,18 @@
+[Unit]
+Description=Edict Outbox Relay Worker
+After=network.target redis.service edict-backend.service
+Requires=redis.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/ai-base/core/edict/edict/backend
+EnvironmentFile=%h/ai-base/core/edict/edict/backend/.env
+Environment="PATH=%h/.npm-global/bin:%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/usr/bin/python3 -m app.workers.outbox_relay
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

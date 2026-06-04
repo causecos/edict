@@ -42,14 +42,14 @@ chmod +x install.sh && ./install.sh
 
 ## 第三步：配置消息渠道
 
-在 OpenClaw 中配置消息渠道（Feishu / Telegram / Signal），将 `taizi`（太子）Agent 设为旨意入口。太子会自动分拣闲聊与指令，指令类消息提炼标题后转发中书省。
+在 OpenClaw 中配置消息渠道（Telegram），將 `taizi`（太子）Agent 設為旨意入口。太子會自動分揀閒聊與指令，指令類訊息提煉標題後轉發中書省。
 
 ```bash
-# 查看当前渠道
+# 查看當前渠道
 openclaw channels list
 
-# 添加飞书渠道（入口设为太子）
-openclaw channels add --type feishu --agent taizi
+# 添加 Telegram 渠道（入口設為太子）
+openclaw channels add --type telegram --agent taizi
 ```
 
 参考 OpenClaw 文档：https://docs.openclaw.ai/channels

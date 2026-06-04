@@ -34,19 +34,15 @@ from ..services.event_bus import (
 )
 from ..services.task_service import TaskService
 
+from ..config import get_settings
+
 log = logging.getLogger("edict.orchestrator")
 
 GROUP = "orchestrator"
 CONSUMER = "orch-1"
 
-# 停滯恢復配置
-MAX_STALL_RETRIES = 2        # 最大重試次數
-MAX_ESCALATION_LEVEL = 3     # 最大升級層級
-STALL_RETRY_BACKOFF = [30, 60, 120]  # 重試退避時間（秒）
-
-# 停滯檢測配置
-STALL_CHECK_INTERVAL_SEC = 60   # 檢查間隔（秒）
-STALL_THRESHOLD_SEC = 600       # 超過 10 分鐘無心跳視爲停滯
+# 停滯相關配置從 Settings 讀取（可透過環境變數覆蓋）
+_settings = get_settings()
 
 # 升級路徑: 卡在某部門時向上級升級
 _ESCALATION_PATH = {
@@ -333,7 +329,7 @@ class OrchestratorWorker:
         )
 
         # 策略 1: 重試 — 未超過重試次數時，重新派發同一 agent
-        if stall_count < MAX_STALL_RETRIES:
+        if stall_count < _settings.max_stall_retries:
             agent = STATE_AGENT_MAP.get(TaskState(current_state)) if current_state else None
             if current_state in ("Doing", "Next"):
                 org = payload.get("assignee_org", "")
@@ -357,7 +353,7 @@ class OrchestratorWorker:
                 return
 
         # 策略 2: 升級 — 重試耗盡，向上級流轉
-        if escalation_level < MAX_ESCALATION_LEVEL:
+        if escalation_level < _settings.max_escalation_level:
             escalate_to = _ESCALATION_PATH.get(current_state)
             if escalate_to:
                 escalate_agent = STATE_AGENT_MAP.get(escalate_to, "shangshu")
@@ -408,7 +404,7 @@ class OrchestratorWorker:
                 "task_id": task_id,
                 "from": current_state,
                 "to": TaskState.Blocked.value,
-                "reason": f"任務多次停滯（重試{MAX_STALL_RETRIES}次+升級{MAX_ESCALATION_LEVEL}級），需人工介入",
+                "reason": f"任務多次停滯（重試{_settings.max_stall_retries}次+升級{_settings.max_escalation_level}級），需人工介入",
                 "assignee_org": payload.get("assignee_org", ""),
             },
         )
@@ -420,16 +416,16 @@ class OrchestratorWorker:
         while self._running:
             try:
                 await self._check_stalled()
-                await asyncio.sleep(STALL_CHECK_INTERVAL_SEC)
+                await asyncio.sleep(_settings.stall_check_interval_sec)
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 log.error(f"Stall check error: {e}", exc_info=True)
-                await asyncio.sleep(STALL_CHECK_INTERVAL_SEC)
+                await asyncio.sleep(_settings.stall_check_interval_sec)
 
     async def _check_stalled(self):
         """掃描數據庫中非終止狀態超過閾值未更新的任務。"""
-        threshold = datetime.now(timezone.utc) - timedelta(seconds=STALL_THRESHOLD_SEC)
+        threshold = datetime.now(timezone.utc) - timedelta(seconds=_settings.stall_threshold_sec)
 
         # 所有非終止的 active 狀態（排除 Blocked，因 Blocked 已確認需人工介入）
         NON_TERMINAL_STATES = [

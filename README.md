@@ -35,12 +35,17 @@
 
 ---
 
-## 🆕 近期更新（2026-05）
+## 🆕 近期更新（2026-06）
 
 - **任務資料源改為 DB-first**：Dashboard `live-status` 支援 `db/json/auto` 模式切換，預設建議 `db`。
 - **模式切換 CLI**：新增 `scripts/task_source_mode.py`，可查詢/切換資料源模式與後端健康狀態。
 - **流程一致性強化**：主路徑以 **Event Bus** 為準，CLI 僅作故障排查與補救。
 - **模型配置升級**：每個 Agent 可獨立切換 LLM 與 THINK，模型下拉優先顯示 runtime 可用項目。
+- **後端安全加固**：寫入端點強制 API Key 鑑權，密碼/密鑰統一由 `.env` 管理，預設值改為動態隨機生成。
+- **通知管道 Telegram 化**：從 Feishu 遷移至 Telegram，dispatch 自動追蹤任務來源 channel 並優先回報。
+- **Dispatch 統一重構**：消除重複派發邏輯，統一 `openclaw` 路徑解析，支援指數退避重試。
+- **繁體中文本地化**：新增 `scripts/fanti_convert.py`，Dashboard 全介面支援繁體中文。
+- **死碼清理**：移除 35 個 `_fanti` 重複檔、`channels/__init__.py` 殘留程式碼。
 - **穩定性修復**：已完成相容層與同步路徑修復，當前測試結果為 **225 passed**。
 
 ```bash
@@ -66,7 +71,7 @@ python3 scripts/task_source_mode.py set db
 <p align="center">
   <img src="docs/demo.gif" alt="三省六部 Demo" width="100%">
   <br>
-  <sub>飞书下旨 → 太子分拣 → 中书省规划 → 门下省审议 → 六部并行执行 → 奏折回报（30 秒）</sub>
+  <sub>Telegram 下旨 → 太子分拣 → 中书省规划 → 门下省审议 → 六部并行执行 → 奏折回报（30 秒）</sub>
 </p>
 </details>
 
@@ -99,7 +104,7 @@ python3 scripts/task_source_mode.py set db
 | **Agent 健康监控** | ❌ | ❌ | ❌ | **✅ 心跳 + 活跃度检测** |
 | **热切换模型** | ❌ | ❌ | ❌ | **✅ 看板内一键切换 LLM** |
 | **技能管理** | ❌ | ❌ | ❌ | **✅ 查看 / 添加 Skills** |
-| **新闻聚合推送** | ❌ | ❌ | ❌ | **✅ 天下要闻 + 飞书推送** |
+| **新闻聚合推送** | ❌ | ❌ | ❌ | **✅ 天下要闻 + Telegram 推送** |
 | **部署难度** | 中 | 高 | 中 | **低 · 一键安装 / Docker** |
 
 > **核心差异：制度性审核 + 完全可观测 + 实时可干预**
@@ -182,7 +187,7 @@ CrewAI 和 AutoGen 的 Agent 协作模式是 **"做完就交"**——没有人�
 
 **📰 天下要闻 · News**
 - 每日自动采集科技/财经资讯
-- 分类订阅管理 + 飞书推送
+- 分类订阅管理 + Telegram 推送
 
 </td></tr>
 <tr><td>
@@ -314,6 +319,7 @@ chmod +x install.sh && ./install.sh
 安装脚本自动完成：
 - ✅ 创建全量 Agent Workspace（含太子/吏部/早朝，兼容历史 main）
 - ✅ 写入各省部 SOUL.md（角色人格 + 工作流规则 + 数据清洗规范）
+- ✅ 生成 `.env` 設定檔（含 API Key 與資料庫密碼，預設值動態隨機生成）
 - ✅ 注册 Agent 及权限矩阵到 `openclaw.json`
 - ✅ **符号链接统一数据**（各 Workspace 的 data/scripts → 项目目录，确保数据一致）
 - ✅ **设置 Agent 间通信可见性**（`sessions.visibility all`，解决消息不可达问题）
@@ -339,20 +345,27 @@ open http://127.0.0.1:7891
 ```
 
 <details>
-<summary><b>🖥️ 生产环境部署（systemd）</b></summary>
+<summary><b>🖥️ 生产环境部署（systemd user）</b></summary>
+
+Edict 使用 **user-level systemd** 管理後端服務，無需 root 權限：
 
 ```bash
-# 安装 systemd 服务
-sudo cp edict.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable edict
-sudo systemctl start edict
+# 安裝 systemd user 服務（從 repo 內 edict.sh）
+bash edict.sh install-services
 
-# 或使用管理脚本
-bash edict.sh start    # 启动
-bash edict.sh status   # 查看状态
-bash edict.sh restart  # 重启
-bash edict.sh stop     # 停止
+# 全部啟動 / 停止
+bash edict.sh start-all
+bash edict.sh stop-all
+
+# 個別管理
+systemctl --user start edict-backend       # FastAPI 後端 (port 8900)
+systemctl --user start edict-dispatch      # 派發 Worker
+systemctl --user start edict-orchestrator  # DAG 編排器
+systemctl --user start edict-outbox        # Outbox Relay
+
+# 查看狀態 / 日誌
+bash edict.sh status
+journalctl --user -u edict-backend -f      # 即時日誌
 ```
 
 </details>
@@ -368,7 +381,7 @@ bash edict.sh stop     # 停止
 ```
                            ┌───────────────────────────────────┐
                            │          👑 皇上（你）              │
-                           │     Feishu · Telegram · Signal     │
+                           │     Telegram · Signal     │
                            └─────────────────┬─────────────────┘
                                              │ 下旨
                            ┌─────────────────▼─────────────────┐
@@ -443,6 +456,40 @@ bash edict.sh stop     # 停止
 > 🔄 **异步事件驱动**：服务间通过 Redis Streams EventBus 解耦通信，Outbox Relay 保障事件可靠投递。
 > 所有状态变更自动写入审计日志（`audit.py`），支持完整追溯。
 
+### 🔄 異步後端架構
+
+Edict 的任務流轉由 **PostgreSQL + Redis Streams** 驅動的異步後端支撐，確保事件可靠投遞、狀態一致：
+
+| 服務 | 技術 | 說明 |
+|------|------|------|
+| **後端 API** | FastAPI + SQLAlchemy | 任務/審計/Outbox 持久化，RESTful API（port 8900） |
+| **EventBus** | Redis Streams | 事件匯流排，服務間發布/訂閱解耦 |
+| **Dispatch Worker** | Python asyncio | 並行派發，指數退避重試 + 資源鎖 |
+| **Orchestrator** | DAG 解析 | 任務分解與依賴拓撲排序 |
+| **Outbox Relay** | 事務性 Outbox | 保障事件至少一次投遞，防止遺漏 |
+
+#### Systemd 服務管理
+
+```bash
+# 全部啟動
+bash edict.sh start-all
+
+# 個別管理
+systemctl --user start edict-backend       # FastAPI 後端
+systemctl --user start edict-dispatch      # 派發 Worker
+systemctl --user start edict-orchestrator  # DAG 編排器
+systemctl --user start edict-outbox        # Outbox Relay
+
+# 查看狀態
+bash edict.sh status
+```
+
+#### 安全機制
+
+- **API Key 鑑權**：所有寫入端點強制驗證 `X-API-Key` header
+- **.env 密鑰管理**：密碼/Token 統一由 `.env` 載入，預設值以 `secrets.token_urlsafe(32)` 動態隨機生成
+- **審計日誌**：所有狀態變更自動寫入 `audit` 表，支援完整追溯
+
 ---
 
 ## 📁 项目结构
@@ -510,6 +557,8 @@ edict/
 ├── start.sh                    # 一键启动（Dashboard + 数据刷新）
 ├── edict.service               # systemd 服务配置（生产部署）
 ├── edict.sh                    # 服务管理脚本（start/stop/restart/status）
+├── RULES.md                    # 開發規則（死碼/安全/測試/文件規範）
+├── .env.example                # 環境變數範本
 ├── CONTRIBUTING.md             # 贡献指南
 └── LICENSE                     # MIT License
 ```
@@ -520,7 +569,7 @@ edict/
 
 ### 向 AI 下旨
 
-通过 Feishu / Telegram / Signal 给中书省发消息：
+通过 Telegram / Signal 给中书省发消息：
 
 ```
 给我设计一个用户注册系统，要求：
@@ -751,7 +800,7 @@ python3 scripts/skill_manager.py import-official-hub --agents menxia
 - [x] 奏折系统（自动归档 + 五阶段时间线）
 - [x] 圣旨模板库（9 个预设 + 参数表单）
 - [x] 上朝仪式感动画
-- [x] 天下要闻 + 飞书推送 + 订阅管理
+- [x] 天下要闻 + Telegram 推送 + 订阅管理
 - [x] 模型热切换 + 技能管理 + 技能添加
 - [x] 官员总览 + Token 消耗统计
 - [x] 小任务 / 会话监控

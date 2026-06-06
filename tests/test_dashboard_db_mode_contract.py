@@ -247,3 +247,114 @@ def test_scheduler_scan_route_db_mode_reaches_second_page(monkeypatch):
     ]
     assert retries and retries[0][0] == 'JJC-20260606-201'
     assert '停滯' in retries[0][1]
+
+
+def test_transition_task_record_db_mode_uses_backend_new_state_field(monkeypatch):
+    import server as srv
+
+    captured = {}
+
+    def fake_backend_api(method, path, body=None, cfg=None):
+        captured['method'] = method
+        captured['path'] = path
+        captured['body'] = body
+        captured['cfg'] = cfg
+        return {'task_id': 'JJC-TRANS-001', 'state': 'Blocked'}
+
+    monkeypatch.setattr(srv, '_backend_api_json', fake_backend_api)
+    monkeypatch.setattr(srv, '_sync_shadow_from_backend', lambda cfg=None: {'tasks': []})
+    monkeypatch.setattr(srv, '_load_task_source_mode', lambda: DB_CFG.copy())
+
+    result = srv._transition_task_record('JJC-TRANS-001', 'Blocked', reason='皇上叫停', agent='皇上', cfg=DB_CFG)
+
+    assert result['state'] == 'Blocked'
+    assert captured == {
+        'method': 'POST',
+        'path': '/api/tasks/JJC-TRANS-001/transition',
+        'body': {
+            'new_state': 'Blocked',
+            'agent': '皇上',
+            'reason': '皇上叫停',
+        },
+        'cfg': DB_CFG,
+    }
+
+
+def test_create_task_record_db_mode_does_not_retransition_taizi(monkeypatch):
+    import server as srv
+
+    backend_calls = []
+    patched_payloads = []
+
+    def fake_backend_api(method, path, body=None, cfg=None):
+        backend_calls.append((method, path, body, cfg))
+        if path == '/api/tasks':
+            return {
+                'task_id': 'JJC-CREATE-001',
+                'state': 'Taizi',
+                'org': '太子',
+                'todos': [],
+            }
+        raise AssertionError(f'unexpected backend call: {(method, path, body, cfg)}')
+
+    def fake_patch(task_id, patch_payload, cfg=None):
+        patched_payloads.append((task_id, patch_payload, cfg))
+        return {'task_id': task_id, 'state': 'Taizi', 'org': '太子'}
+
+    monkeypatch.setattr(srv, '_backend_api_json', fake_backend_api)
+    monkeypatch.setattr(srv, '_patch_task_record', fake_patch)
+    monkeypatch.setattr(srv, '_load_task_source_mode', lambda: DB_CFG.copy())
+
+    result = srv._create_task_record(
+        '測試任務',
+        org='中書省',
+        official='中書令',
+        priority='normal',
+        template_id='tpl-001',
+        params={'x': 1},
+        target_dept='工部',
+        cfg=DB_CFG,
+    )
+
+    assert result['task_id'] == 'JJC-CREATE-001'
+    assert backend_calls == [
+        (
+            'POST',
+            '/api/tasks',
+            {
+                'title': '測試任務',
+                'description': '下旨：測試任務',
+                'priority': '中',
+                'creator': 'dashboard',
+                'assignee_org': '工部',
+                'meta': {
+                    'source': 'dashboard',
+                    'official': '中書令',
+                    'target_dept': '工部',
+                    'template_id': 'tpl-001',
+                    'template_params': {'x': 1},
+                },
+            },
+            DB_CFG,
+        )
+    ]
+    assert len(patched_payloads) == 1
+    task_id, patch_payload, cfg = patched_payloads[0]
+    assert task_id == 'JJC-CREATE-001'
+    assert cfg == DB_CFG
+    assert patch_payload['fields'] == {
+        'org': '太子',
+        'official': '中書令',
+        'template_id': 'tpl-001',
+        'template_params': {'x': 1},
+        'target_dept': '工部',
+        'review_round': 0,
+    }
+    assert patch_payload['producer'] == 'dashboard-create'
+    assert patch_payload['progress_entry']['agent'] == 'emperor'
+    assert patch_payload['progress_entry']['agentLabel'] == '皇上'
+    assert patch_payload['progress_entry']['text'] == '任務創建'
+    assert patch_payload['progress_entry']['state'] == 'Taizi'
+    assert patch_payload['progress_entry']['org'] == '太子'
+    assert patch_payload['progress_entry']['todos'] == []
+    assert patch_payload['progress_entry']['at']

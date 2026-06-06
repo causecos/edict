@@ -16,7 +16,8 @@ Endpoints:
 """
 import json, pathlib, subprocess, sys, threading, argparse, datetime, logging, re, os, socket, shutil
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import urlparse
+from urllib.error import HTTPError
+from urllib.parse import urlparse, urlencode
 from urllib.request import Request, urlopen
 
 # JWT 認證模塊
@@ -357,7 +358,12 @@ def get_live_status_with_mode():
     # db / auto 都先走 DB，失敗不自動降級
     try:
         db_payload = _fetch_backend_live_status(cfg)
-        return _inject_source_meta(_normalize_backend_live_status(db_payload), {
+        normalized = _normalize_backend_live_status(db_payload)
+        try:
+            _sync_shadow_from_backend(cfg, normalized)
+        except Exception as shadow_err:
+            log.warning(f'live-status shadow sync failed: {shadow_err}')
+        return _inject_source_meta(normalized, {
             'configured': mode,
             'effective': 'db',
             'backendApiBase': cfg['backendApiBase'],
@@ -378,6 +384,255 @@ def get_live_status_with_mode():
                 'backendHealth': health,
             }
         }
+
+
+def _task_source_uses_backend(cfg=None):
+    """只要不是明確 json，就把 backend 視為唯一真源。"""
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    return cfg.get('mode') != 'json'
+
+
+def _backend_api_json(method, path, body=None, cfg=None):
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    headers = {'Accept': 'application/json'}
+    _api_key = _get_api_key()
+    if _api_key:
+        headers['X-API-Key'] = _api_key
+    data = None
+    if body is not None:
+        headers['Content-Type'] = 'application/json; charset=utf-8'
+        data = json.dumps(body, ensure_ascii=False).encode('utf-8')
+    req = Request(cfg['backendApiBase'] + path, data=data, headers=headers, method=method.upper())
+    try:
+        with urlopen(req, timeout=max(1, cfg['timeoutMs'] / 1000)) as resp:
+            raw = resp.read().decode('utf-8', errors='replace')
+            return json.loads(raw) if raw else {}
+    except HTTPError as e:
+        raw = e.read().decode('utf-8', errors='replace')
+        detail = raw
+        try:
+            parsed = json.loads(raw) if raw else {}
+            if isinstance(parsed, dict):
+                detail = parsed.get('detail') or parsed.get('error') or raw
+        except Exception:
+            pass
+        raise RuntimeError(f'{method.upper()} {path} failed ({e.code}): {detail}') from e
+
+
+def _sync_shadow_from_backend(cfg=None, payload=None):
+    """把 DB 任務快照同步到本地 JSON 陰影文件，供舊邏輯/排錯回看。"""
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    if payload is None:
+        payload = _normalize_backend_live_status(_fetch_backend_live_status(cfg))
+    tasks = payload.get('tasks', []) if isinstance(payload, dict) else []
+    shadow = dict(payload or {})
+    shadow.setdefault('source', 'db-api-shadow')
+    shadow.setdefault('lastSyncAt', now_iso())
+    shadow['tasks'] = tasks
+    task_data_dir = get_task_data_dir()
+    atomic_json_write(task_data_dir / 'tasks_source.json', tasks)
+    atomic_json_write(task_data_dir / 'live_status.json', shadow)
+    return shadow
+
+
+def _list_task_records(cfg=None, include_archived=True, sync_shadow=True):
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    if not _task_source_uses_backend(cfg):
+        return load_tasks()
+
+    page_size = 200  # keep aligned with backend /api/tasks Query(le=200)
+    offset = 0
+    tasks = []
+
+    while True:
+        params = {'limit': str(page_size), 'offset': str(offset)}
+        if include_archived is not None:
+            params['archived'] = 'true' if include_archived else 'false'
+        payload = _backend_api_json('GET', '/api/tasks?' + urlencode(params), cfg=cfg)
+        batch = payload.get('tasks', []) if isinstance(payload, dict) else []
+        if not isinstance(batch, list):
+            batch = []
+        tasks.extend(batch)
+        if len(batch) < page_size:
+            break
+        offset += page_size
+
+    if sync_shadow:
+        live_payload = _normalize_backend_live_status(_fetch_backend_live_status(cfg))
+        _sync_shadow_from_backend(cfg, live_payload)
+    return tasks
+
+
+def _get_task_record(task_id, cfg=None, fallback_to_shadow=True):
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    if not _task_source_uses_backend(cfg):
+        tasks = load_tasks()
+        return next((t for t in tasks if t.get('id') == task_id), None)
+    try:
+        task = _backend_api_json('GET', f'/api/tasks/{task_id}', cfg=cfg)
+        if isinstance(task, dict) and task.get('id'):
+            return task
+    except Exception:
+        if not fallback_to_shadow:
+            raise
+    if fallback_to_shadow:
+        tasks = load_tasks()
+        return next((t for t in tasks if t.get('id') == task_id), None)
+    return None
+
+
+def _apply_dashboard_patch(task, patch_payload):
+    fields = dict((patch_payload or {}).get('fields') or {})
+    for key in ('now', 'block', 'eta', 'output', 'org', 'official', 'archived', 'ac'):
+        if key in fields and fields[key] is not None:
+            task[key] = fields[key]
+    if 'scheduler' in fields and fields['scheduler'] is not None:
+        task['scheduler'] = fields['scheduler']
+        task['_scheduler'] = fields['scheduler']
+    if 'todos' in fields and fields['todos'] is not None:
+        task['todos'] = fields['todos']
+    if 'template_id' in fields and fields['template_id'] is not None:
+        task['templateId'] = fields['template_id']
+    if 'template_params' in fields and fields['template_params'] is not None:
+        task['templateParams'] = fields['template_params']
+    if 'target_dept' in fields and fields['target_dept'] is not None:
+        task['targetDept'] = fields['target_dept']
+    if 'assignee_org' in fields and fields['assignee_org'] is not None:
+        task['assignee_org'] = fields['assignee_org']
+    if 'review_round' in fields and fields['review_round'] is not None:
+        task['review_round'] = int(fields['review_round'])
+    if 'prev_state' in fields:
+        prev_state = fields['prev_state']
+        if prev_state:
+            task['_prev_state'] = str(prev_state)
+        else:
+            task.pop('_prev_state', None)
+    meta_updates = (patch_payload or {}).get('meta_updates') or {}
+    if meta_updates:
+        meta = dict(task.get('meta') or {})
+        meta.update(meta_updates)
+        task['meta'] = meta
+    flow_entry = (patch_payload or {}).get('flow_entry')
+    if flow_entry:
+        task.setdefault('flow_log', []).append(flow_entry)
+    progress_entry = (patch_payload or {}).get('progress_entry')
+    if progress_entry:
+        task.setdefault('progress_log', []).append(progress_entry)
+    task['updatedAt'] = now_iso()
+    return task
+
+
+def _patch_task_record(task_id, patch_payload, cfg=None):
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    if not _task_source_uses_backend(cfg):
+        found = [False]
+
+        def _modifier(tasks):
+            for task in tasks:
+                if task.get('id') == task_id:
+                    _apply_dashboard_patch(task, patch_payload)
+                    found[0] = True
+                    break
+            return tasks
+
+        modify_tasks(_modifier)
+        if not found[0]:
+            raise RuntimeError(f'task not found: {task_id}')
+        return _get_task_record(task_id, cfg=cfg, fallback_to_shadow=False)
+    task = _backend_api_json('PUT', f'/api/tasks/{task_id}/dashboard', body=patch_payload, cfg=cfg)
+    try:
+        _sync_shadow_from_backend(cfg)
+    except Exception as e:
+        log.warning(f'shadow sync failed after patch {task_id}: {e}')
+    return task
+
+
+def _transition_task_record(task_id, new_state, reason='', agent='dashboard', cfg=None):
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    if not _task_source_uses_backend(cfg):
+        set_task_state(task_id, new_state, reason)
+        return _get_task_record(task_id, cfg=cfg, fallback_to_shadow=False)
+    task = _backend_api_json('POST', f'/api/tasks/{task_id}/transition', body={
+        'to_state': new_state,
+        'agent': agent,
+        'reason': reason,
+    }, cfg=cfg)
+    try:
+        _sync_shadow_from_backend(cfg)
+    except Exception as e:
+        log.warning(f'shadow sync failed after transition {task_id}: {e}')
+    return task
+
+
+def _update_task_todos_record(task_id, todos, cfg=None):
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    if not _task_source_uses_backend(cfg):
+        return update_task_todos(task_id, todos)
+    task = _backend_api_json('PUT', f'/api/tasks/{task_id}/todos', body={'todos': todos}, cfg=cfg)
+    try:
+        _sync_shadow_from_backend(cfg)
+    except Exception as e:
+        log.warning(f'shadow sync failed after todos update {task_id}: {e}')
+    return task
+
+
+def _update_task_scheduler_record(task_id, scheduler, cfg=None):
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    if not _task_source_uses_backend(cfg):
+        return {'ok': False, 'error': 'json path should use local scheduler mutators'}
+    task = _backend_api_json('PUT', f'/api/tasks/{task_id}/scheduler', body={'scheduler': scheduler}, cfg=cfg)
+    try:
+        _sync_shadow_from_backend(cfg)
+    except Exception as e:
+        log.warning(f'shadow sync failed after scheduler update {task_id}: {e}')
+    return task
+
+
+def _create_task_record(title, org='中書省', official='中書令', priority='normal', template_id='', params=None, target_dept='', cfg=None):
+    cfg = _normalize_task_source_mode(cfg or _load_task_source_mode())
+    if not _task_source_uses_backend(cfg):
+        raise RuntimeError('json path should use local create flow')
+    priority_map = {'low': '低', 'normal': '中', 'high': '高', 'urgent': '高'}
+    payload = _backend_api_json('POST', '/api/tasks', body={
+        'title': title,
+        'description': f'下旨：{title}',
+        'priority': priority_map.get(priority, priority or '中'),
+        'creator': 'dashboard',
+        'assignee_org': target_dept or org or '太子',
+        'meta': {
+            'source': 'dashboard',
+            'official': official,
+            'target_dept': target_dept,
+            'template_id': template_id,
+            'template_params': params or {},
+        },
+    }, cfg=cfg)
+    task_id = str(payload.get('task_id') or payload.get('id') or '')
+    if not task_id:
+        raise RuntimeError('backend create task returned empty task id')
+    task = _transition_task_record(task_id, 'Taizi', reason=f'下旨：{title}', agent='皇上', cfg=cfg)
+    task_snapshot = task if isinstance(task, dict) else {}
+    patched = _patch_task_record(task_id, {
+        'fields': {
+            'org': '太子',
+            'official': official,
+            'template_id': template_id,
+            'template_params': params or {},
+            'target_dept': target_dept,
+            'review_round': 0,
+        },
+        'producer': 'dashboard-create',
+        'progress_entry': {
+            'at': now_iso(),
+            'agent': 'emperor',
+            'agentLabel': '皇上',
+            'text': '任務創建',
+            'state': task_snapshot.get('state', 'Taizi'),
+            'org': task_snapshot.get('org', '太子'),
+            'todos': task_snapshot.get('todos', []),
+        },
+    }, cfg=cfg)
+    return patched
 
 
 def save_tasks(tasks):
@@ -493,6 +748,32 @@ def handle_task_action(task_id, action, reason):
 
 def handle_archive_task(task_id, archived, archive_all_done=False):
     """Archive or unarchive a task, or batch-archive all Done/Cancelled tasks."""
+    cfg = _load_task_source_mode()
+    if _task_source_uses_backend(cfg):
+        try:
+            tasks = _list_task_records(cfg=cfg, include_archived=True)
+            if archive_all_done:
+                count = 0
+                for t in tasks:
+                    if t.get('state') in ('Done', 'Cancelled') and not t.get('archived'):
+                        _patch_task_record(t.get('id', ''), {
+                            'fields': {'archived': True},
+                            'producer': 'dashboard-archive-all',
+                        }, cfg=cfg)
+                        count += 1
+                return {'ok': True, 'message': f'{count} 道旨意已歸檔', 'count': count}
+            task = next((t for t in tasks if t.get('id') == task_id), None)
+            if not task:
+                return {'ok': False, 'error': f'任務 {task_id} 不存在'}
+            _patch_task_record(task_id, {
+                'fields': {'archived': archived},
+                'producer': 'dashboard-archive-task',
+            }, cfg=cfg)
+            label = '已歸檔' if archived else '已取消歸檔'
+            return {'ok': True, 'message': f'{task_id} {label}'}
+        except Exception as e:
+            return {'ok': False, 'error': f'DB 歸檔失敗: {e}'}
+
     tasks = load_tasks()
     if archive_all_done:
         count = 0
@@ -519,6 +800,14 @@ def handle_archive_task(task_id, archived, archive_all_done=False):
 
 def update_task_todos(task_id, todos):
     """Update the todos list for a task."""
+    cfg = _load_task_source_mode()
+    if _task_source_uses_backend(cfg):
+        try:
+            _update_task_todos_record(task_id, todos, cfg=cfg)
+            return {'ok': True, 'message': f'{task_id} todos 已更新'}
+        except Exception as e:
+            return {'ok': False, 'error': f'DB 更新 todos 失敗: {e}'}
+
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
@@ -916,6 +1205,25 @@ def handle_create_task(title, org='中書省', official='中書令', priority='n
         return {'ok': False, 'error': '任務標題不能爲空'}
 
     title = title.strip()
+    cfg = _load_task_source_mode()
+    if _task_source_uses_backend(cfg):
+        try:
+            task = _create_task_record(
+                title,
+                org=org,
+                official=official,
+                priority=priority,
+                template_id=template_id,
+                params=params,
+                target_dept=target_dept,
+                cfg=cfg,
+            )
+            task_snapshot = task if isinstance(task, dict) else {}
+            task_id = str(task_snapshot.get('id') or task_snapshot.get('task_id') or '')
+            return {'ok': True, 'taskId': task_id, 'message': f'旨意 {task_id} 已下達，正在派發給太子'}
+        except Exception as e:
+            return {'ok': False, 'error': f'DB 建單失敗: {e}'}
+
     today = datetime.datetime.now().strftime('%Y%m%d')
     tasks = load_tasks()
     today_ids = [t['id'] for t in tasks if t.get('id', '').startswith(f'JJC-{today}-')]
@@ -967,6 +1275,62 @@ def _todo_progress(task):
 
 def handle_review_action(task_id, action, comment=''):
     """門下省御批：準奏/封駁。"""
+    cfg = _load_task_source_mode()
+    if _task_source_uses_backend(cfg):
+        task = _get_task_record(task_id, cfg=cfg, fallback_to_shadow=False)
+        if not task:
+            return {'ok': False, 'error': f'任務 {task_id} 不存在'}
+        if task.get('state') not in ('Review', 'Menxia'):
+            return {'ok': False, 'error': f'任務 {task_id} 當前狀態爲 {task.get("state")}，無法御批'}
+
+        _ensure_scheduler(task)
+        _scheduler_snapshot(task, f'review-before-{action}')
+        review_round = int(task.get('review_round') or 0)
+
+        if action == 'approve':
+            if task['state'] == 'Menxia':
+                new_state = 'Assigned'
+                now_text = '門下省準奏，移交尚書省派發'
+                actor = '門下省'
+            else:
+                completed, total = _todo_progress(task)
+                if total > 0 and completed < total:
+                    return {'ok': False, 'error': f'子任務尚未全部完成（{completed}/{total}），不能直接准奏完结'}
+                new_state = 'Done'
+                now_text = '御批通過，任務完成'
+                actor = '皇上'
+        elif action == 'reject':
+            review_round += 1
+            new_state = 'Zhongshu'
+            now_text = f'封駁退回中書省修訂（第{review_round}輪）'
+            actor = '門下省'
+        else:
+            return {'ok': False, 'error': f'未知操作: {action}'}
+
+        _scheduler_mark_progress(task, f'審議動作 {action} -> {new_state}')
+        try:
+            updated = _transition_task_record(task_id, new_state, reason=now_text, agent=actor, cfg=cfg)
+            _patch_task_record(task_id, {
+                'fields': {
+                    'review_round': review_round,
+                    'scheduler': task.get('scheduler', {}),
+                },
+                'producer': 'dashboard-review-action',
+            }, cfg=cfg)
+        except Exception as e:
+            return {'ok': False, 'error': f'DB 御批失敗: {e}'}
+
+        try:
+            latest = updated if isinstance(updated, dict) else _get_task_record(task_id, cfg=cfg)
+            if latest and new_state != 'Done':
+                dispatch_for_state(task_id, latest, new_state, 'review-action')
+        except Exception:
+            pass
+
+        label = '已準奏' if action == 'approve' else '已封駁'
+        dispatched = ' (已自動派發 Agent)' if new_state != 'Done' else ''
+        return {'ok': True, 'message': f'{task_id} {label}{dispatched}'}
+
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
@@ -1368,8 +1732,7 @@ def _update_task_scheduler(task_id, updater):
 
 
 def get_scheduler_state(task_id):
-    tasks = load_tasks()
-    task = next((t for t in tasks if t.get('id') == task_id), None)
+    task = _get_task_record(task_id)
     if not task:
         return {'ok': False, 'error': f'任務 {task_id} 不存在'}
     sched = _ensure_scheduler(task)
@@ -1390,6 +1753,33 @@ def get_scheduler_state(task_id):
 
 
 def handle_scheduler_retry(task_id, reason=''):
+    cfg = _load_task_source_mode()
+    if _task_source_uses_backend(cfg):
+        task = _get_task_record(task_id, cfg=cfg, fallback_to_shadow=False)
+        if not task:
+            return {'ok': False, 'error': f'任務 {task_id} 不存在'}
+        state = task.get('state', '')
+        if state in _TERMINAL_STATES or state == 'Blocked':
+            return {'ok': False, 'error': f'任務 {task_id} 當前狀態 {state} 不支持重試'}
+
+        _ensure_scheduler(task)
+        sched = task.get('scheduler', {})
+        sched['retryCount'] = int(sched.get('retryCount') or 0) + 1
+        sched['lastRetryAt'] = now_iso()
+        sched['lastDispatchTrigger'] = 'taizi-retry'
+        _scheduler_add_flow(task, f'触发重试第{sched["retryCount"]}次：{reason or "超时未推进"}')
+        try:
+            _patch_task_record(task_id, {
+                'fields': {'scheduler': sched},
+                'producer': 'dashboard-scheduler-retry',
+            }, cfg=cfg)
+            latest = _get_task_record(task_id, cfg=cfg)
+            if latest:
+                dispatch_for_state(task_id, latest, state, trigger='taizi-retry')
+        except Exception as e:
+            return {'ok': False, 'error': f'DB 重試派發失敗: {e}'}
+        return {'ok': True, 'message': f'{task_id} 已触发重试派发', 'retryCount': sched['retryCount']}
+
     # Pre-check before acquiring lock (avoids holding lock for error paths)
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
@@ -1420,6 +1810,43 @@ def handle_scheduler_retry(task_id, reason=''):
 
 
 def handle_scheduler_escalate(task_id, reason=''):
+    cfg = _load_task_source_mode()
+    if _task_source_uses_backend(cfg):
+        task = _get_task_record(task_id, cfg=cfg, fallback_to_shadow=False)
+        if not task:
+            return {'ok': False, 'error': f'任務 {task_id} 不存在'}
+        state = task.get('state', '')
+        if state in _TERMINAL_STATES:
+            return {'ok': False, 'error': f'任務 {task_id} 已結束，無需升級'}
+
+        sched = _ensure_scheduler(task)
+        current_level = int(sched.get('escalationLevel') or 0)
+        next_level = min(current_level + 1, 2)
+        target = 'menxia' if next_level == 1 else 'shangshu'
+        target_label = '門下省' if next_level == 1 else '尚書省'
+
+        sched['escalationLevel'] = next_level
+        sched['lastEscalatedAt'] = now_iso()
+        _scheduler_add_flow(task, f'升級到{target_label}協調：{reason or "任務停滯"}', to=target_label)
+        try:
+            _patch_task_record(task_id, {
+                'fields': {'scheduler': sched},
+                'producer': 'dashboard-scheduler-escalate',
+            }, cfg=cfg)
+        except Exception as e:
+            return {'ok': False, 'error': f'DB 升級失敗: {e}'}
+
+        msg = (
+            f'🧭 太子調度升級通知\n'
+            f'任務ID: {task_id}\n'
+            f'當前狀態: {state}\n'
+            f'停滯處理: 請你介入協調推進\n'
+            f'原因: {reason or "任務超過閾值未推進"}\n'
+            f'⚠️ 看板已有任務，請勿重複創建。'
+        )
+        wake_agent(target, msg)
+        return {'ok': True, 'message': f'{task_id} 已升級至{target_label}', 'escalationLevel': next_level}
+
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
@@ -1454,6 +1881,48 @@ def handle_scheduler_escalate(task_id, reason=''):
 
 
 def handle_scheduler_rollback(task_id, reason=''):
+    cfg = _load_task_source_mode()
+    if _task_source_uses_backend(cfg):
+        task = _get_task_record(task_id, cfg=cfg, fallback_to_shadow=False)
+        if not task:
+            return {'ok': False, 'error': f'任務 {task_id} 不存在'}
+        sched = _ensure_scheduler(task)
+        snapshot = sched.get('snapshot') or {}
+        snap_state = snapshot.get('state')
+        if not snap_state:
+            return {'ok': False, 'error': f'任務 {task_id} 無可用回滾快照'}
+
+        old_state = task.get('state', '')
+        task['org'] = snapshot.get('org', task.get('org', ''))
+        task['block'] = '無'
+        sched['retryCount'] = 0
+        sched['escalationLevel'] = 0
+        sched['stallSince'] = None
+        sched['lastProgressAt'] = now_iso()
+        _scheduler_add_flow(task, f'執行回滾：{old_state} → {snap_state}，原因：{reason or "停滯恢復"}')
+        try:
+            updated = _transition_task_record(task_id, snap_state, reason=f'↩️ 太子调度自动回滚：{reason or "恢复到上个稳定节点"}', agent='太子', cfg=cfg)
+            _patch_task_record(task_id, {
+                'fields': {
+                    'org': task.get('org', ''),
+                    'block': '無',
+                    'scheduler': sched,
+                },
+                'producer': 'dashboard-scheduler-rollback',
+            }, cfg=cfg)
+        except Exception as e:
+            return {'ok': False, 'error': f'DB 回滾失敗: {e}'}
+
+        if snap_state not in _TERMINAL_STATES:
+            try:
+                latest = updated if isinstance(updated, dict) else _get_task_record(task_id, cfg=cfg)
+                if latest:
+                    dispatch_for_state(task_id, latest, snap_state, trigger='taizi-rollback')
+            except Exception:
+                pass
+
+        return {'ok': True, 'message': f'{task_id} 已回滾到 {snap_state}'}
+
     # Pre-check before acquiring lock
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
@@ -1506,6 +1975,48 @@ def handle_scheduler_scan(threshold_sec=600):
     """
     threshold_sec = max(60, int(threshold_sec or 600))
     now_dt = datetime.datetime.now(datetime.timezone.utc)
+    cfg = _load_task_source_mode()
+    if _task_source_uses_backend(cfg):
+        tasks = _list_task_records(cfg=cfg, include_archived=False)
+        actions = []
+        for task in tasks:
+            task_id = task.get('id', '')
+            state = task.get('state', '')
+            if not task_id or state in _TERMINAL_STATES or task.get('archived') or state == 'Blocked':
+                continue
+            sched = _ensure_scheduler(task)
+            task_threshold = int(sched.get('stallThresholdSec') or threshold_sec)
+            last_progress = _parse_iso(sched.get('lastProgressAt') or task.get('updatedAt'))
+            if not last_progress:
+                continue
+            stalled_sec = max(0, int((now_dt - last_progress).total_seconds()))
+            if stalled_sec < task_threshold:
+                continue
+
+            retry_count = int(sched.get('retryCount') or 0)
+            max_retry = max(0, int(sched.get('maxRetry') or 1))
+            level = int(sched.get('escalationLevel') or 0)
+            rollback_count = int(sched.get('rollbackCount') or 0)
+            max_rollback = int(sched.get('maxRollback') or 3)
+            snapshot = sched.get('snapshot') or {}
+            snap_state = snapshot.get('state')
+
+            if retry_count < max_retry:
+                result = handle_scheduler_retry(task_id, f'停滯 {stalled_sec} 秒未推進')
+                if result.get('ok'):
+                    actions.append({'taskId': task_id, 'action': 'retry', 'stalledSec': stalled_sec})
+                continue
+            if level < 2:
+                result = handle_scheduler_escalate(task_id, f'停滯 {stalled_sec} 秒未推進')
+                if result.get('ok'):
+                    actions.append({'taskId': task_id, 'action': 'escalate', 'stalledSec': stalled_sec})
+                continue
+            if sched.get('autoRollback', True) and snap_state and snap_state != state and rollback_count < max_rollback:
+                result = handle_scheduler_rollback(task_id, f'停滯 {stalled_sec} 秒，自動回滾')
+                if result.get('ok'):
+                    actions.append({'taskId': task_id, 'action': 'rollback', 'toState': snap_state})
+        return {'ok': True, 'actions': actions, 'checkedAt': now_iso(), 'count': len(actions), 'source': 'db'}
+
     # Collect dispatch/escalation work to execute after the lock is released
     pending_retries = []
     pending_escalates = []
@@ -2099,8 +2610,7 @@ def get_task_activity(task_id):
     - activity 條目中 progress/todos 保留 state/org 快照
     - activity 中 todos 條目含 diff 字段
     """
-    tasks = load_tasks()
-    task = next((t for t in tasks if t.get('id') == task_id), None)
+    task = _get_task_record(task_id)
     if not task:
         return {'ok': False, 'error': f'任務 {task_id} 不存在'}
 
@@ -2738,8 +3248,7 @@ class Handler(BaseHTTPRequestHandler):
             if not task_id or not _SAFE_NAME_RE.match(task_id):
                 self.send_json({'ok': False, 'error': 'invalid task_id'}, 400)
             else:
-                tasks = load_tasks()
-                task = next((t for t in tasks if t.get('id') == task_id), None)
+                task = _get_task_record(task_id)
                 if not task:
                     self.send_json({'ok': False, 'error': 'task not found'}, 404)
                 else:

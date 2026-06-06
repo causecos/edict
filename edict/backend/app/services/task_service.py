@@ -517,6 +517,88 @@ class TaskService:
         await self.db.commit()
         return task
 
+    async def patch_dashboard_fields(
+        self,
+        task_id: str | uuid.UUID,
+        *,
+        fields: dict[str, Any] | None = None,
+        flow_entry: dict[str, Any] | None = None,
+        progress_entry: dict[str, Any] | None = None,
+        meta_updates: dict[str, Any] | None = None,
+        producer: str = "dashboard",
+    ) -> Task:
+        """更新 Dashboard 專用兼容欄位，供舊看板在 DB 模式下讀寫同一路徑。"""
+        task = await self._get_task_for_update(task_id)
+
+        fields = fields or {}
+        raw_meta = cast(Any, task.meta) or {}
+        meta = cast(dict[str, Any], dict(raw_meta))
+
+        scalar_map = {
+            'now': 'now',
+            'block': 'block',
+            'eta': 'eta',
+            'output': 'output',
+            'org': 'org',
+            'official': 'official',
+            'archived': 'archived',
+            'ac': 'ac',
+        }
+        for key, attr in scalar_map.items():
+            if key in fields and fields[key] is not None:
+                setattr(task, attr, fields[key])
+
+        if 'scheduler' in fields and fields['scheduler'] is not None:
+            task.scheduler = fields['scheduler']
+        if 'todos' in fields and fields['todos'] is not None:
+            task.todos = fields['todos']
+        if 'template_id' in fields and fields['template_id'] is not None:
+            task.template_id = fields['template_id']
+        if 'template_params' in fields and fields['template_params'] is not None:
+            task.template_params = fields['template_params']
+        if 'target_dept' in fields and fields['target_dept'] is not None:
+            task.target_dept = fields['target_dept']
+        if 'assignee_org' in fields and fields['assignee_org'] is not None:
+            task.assignee_org = fields['assignee_org']
+
+        if 'review_round' in fields and fields['review_round'] is not None:
+            meta['review_round'] = int(fields['review_round'])
+        if 'prev_state' in fields:
+            prev_state = fields['prev_state']
+            if prev_state:
+                meta['_prev_state'] = str(prev_state)
+            else:
+                meta.pop('_prev_state', None)
+        if meta_updates:
+            meta.update(meta_updates)
+        task.meta = cast(Any, meta)
+
+        if flow_entry:
+            flow_log = list(cast(list[dict[str, Any]], cast(Any, task.flow_log) or []))
+            flow_log.append(flow_entry)
+            task.flow_log = cast(Any, flow_log)
+        if progress_entry:
+            progress_log = list(cast(list[dict[str, Any]], cast(Any, task.progress_log) or []))
+            progress_log.append(progress_entry)
+            task.progress_log = cast(Any, progress_log)
+
+        task.updated_at = cast(Any, datetime.now(timezone.utc))
+        self._record_audit_event(
+            task,
+            event_type="task.dashboard.patch",
+            producer=producer,
+            payload=self._audit_snapshot(
+                task,
+                message="Dashboard patch",
+                fields=fields,
+                flow_entry=flow_entry,
+                progress_entry=progress_entry,
+                meta_updates=meta_updates,
+            ),
+        )
+        await self.db.commit()
+        return task
+
     # ── 查詢 ──
 
     async def get_task(self, task_id: str | uuid.UUID) -> Task:

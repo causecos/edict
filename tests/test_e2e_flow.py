@@ -60,7 +60,12 @@ class TestTaskLifecycle:
         assert resp.status_code == 201, f"建立失敗: {resp.text}"
         task = resp.json()
         task_id = task["task_id"]
+        uuid_task_id = task["uuid_task_id"]
         trace_id = task["trace_id"]
+
+        # Then: 正式旨意對外 ID 改回 JJC，內部 UUID 另存 uuid_task_id
+        assert task_id.startswith("JJC-")
+        uuid.UUID(uuid_task_id)
 
         # Then: trace_id 為 36 字元 UUID
         assert len(trace_id) == 36
@@ -69,7 +74,8 @@ class TestTaskLifecycle:
         resp = requests.get(f"{BASE}/api/tasks/{task_id}")
         assert resp.status_code == 200
         fetched = resp.json()
-        assert fetched["id"] == task_id
+        assert fetched["task_id"] == task_id
+        assert fetched["uuid_task_id"] == uuid_task_id
         assert fetched["title"].startswith("e2e-test-")
 
         # When: 第一次轉換 Taizi → Zhongshu
@@ -168,10 +174,10 @@ class TestStateMachineEdgeCases:
         resp = requests.get(f"{BASE}/api/tasks/{fake_id}")
         assert resp.status_code == 404
 
-    def test_non_uuid_task_id_returns_422(self):
-        """非 UUID task_id 應回 422。"""
+    def test_non_public_or_uuid_task_id_returns_404(self):
+        """非 UUID / 非已存在 public id 的 task_id 應回 404。"""
         resp = requests.get(f"{BASE}/api/tasks/not-a-uuid")
-        assert resp.status_code == 422
+        assert resp.status_code == 404
 
 
 class TestFieldValidation:

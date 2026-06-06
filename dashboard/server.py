@@ -553,7 +553,7 @@ def _transition_task_record(task_id, new_state, reason='', agent='dashboard', cf
         set_task_state(task_id, new_state, reason)
         return _get_task_record(task_id, cfg=cfg, fallback_to_shadow=False)
     task = _backend_api_json('POST', f'/api/tasks/{task_id}/transition', body={
-        'to_state': new_state,
+        'new_state': new_state,
         'agent': agent,
         'reason': reason,
     }, cfg=cfg)
@@ -610,8 +610,7 @@ def _create_task_record(title, org='中書省', official='中書令', priority='
     task_id = str(payload.get('task_id') or payload.get('id') or '')
     if not task_id:
         raise RuntimeError('backend create task returned empty task id')
-    task = _transition_task_record(task_id, 'Taizi', reason=f'下旨：{title}', agent='皇上', cfg=cfg)
-    task_snapshot = task if isinstance(task, dict) else {}
+    task_snapshot = payload if isinstance(payload, dict) else {}
     patched = _patch_task_record(task_id, {
         'fields': {
             'org': '太子',

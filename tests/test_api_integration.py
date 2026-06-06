@@ -23,6 +23,8 @@ from pathlib import Path
 import pytest
 import requests
 
+from tests.api_auth import api_key_headers
+
 # ── 測試配置 ──
 
 BACKEND_URL = os.environ.get("EDICT_BACKEND_URL", "http://localhost:8000")
@@ -75,6 +77,13 @@ pytestmark_requires_backend = pytest.mark.skipif(
 pytestmark_requires_dashboard = pytest.mark.skipif(
     not _dashboard_ok, reason="Dashboard (localhost:7891) 未執行"
 )
+
+
+def _auth_headers_or_skip() -> dict[str, str]:
+    headers = api_key_headers()
+    if _auth_required and not headers:
+        pytest.skip("API Key 認證已啟用，但測試環境無法解析有效 key")
+    return headers
 
 
 # ============================================================
@@ -187,8 +196,7 @@ class TestBackendTaskCreate:
     @pytestmark_requires_backend
     def test_create_task_with_all_fields(self):
         """POST /api/tasks 含完整欄位應正確建立任務。"""
-        if _auth_required:
-            pytest.skip("API Key 認證已啟用，需提供有效 key")
+        headers = _auth_headers_or_skip()
 
         payload = {
             "title": "完整欄位測試任務",
@@ -202,6 +210,7 @@ class TestBackendTaskCreate:
         r = requests.post(
             f"{BACKEND_URL}/api/tasks",
             json=payload,
+            headers=headers,
             timeout=10,
         )
         assert r.status_code == 201
@@ -267,13 +276,13 @@ class TestBackendTaskTransition:
     @pytestmark_requires_backend
     def test_transition_valid_state_succeeds(self):
         """POST /api/tasks/{id}/transition 有效狀態轉換應成功。"""
-        if _auth_required:
-            pytest.skip("API Key 認證已啟用，需提供有效 key")
+        headers = _auth_headers_or_skip()
 
         # 先建立一個任務
         create_r = requests.post(
             f"{BACKEND_URL}/api/tasks",
             json={"title": "流轉測試任務"},
+            headers=headers,
             timeout=10,
         )
         if create_r.status_code != 201:
@@ -285,6 +294,7 @@ class TestBackendTaskTransition:
         r = requests.post(
             f"{BACKEND_URL}/api/tasks/{task_id}/transition",
             json={"new_state": "Zhongshu", "agent": "test", "reason": "自動化測試流轉"},
+            headers=headers,
             timeout=10,
         )
         assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
@@ -295,13 +305,13 @@ class TestBackendTaskTransition:
     @pytestmark_requires_backend
     def test_transition_invalid_state_fails(self):
         """POST /api/tasks/{id}/transition 無效狀態轉換應回 400。"""
-        if _auth_required:
-            pytest.skip("API Key 認證已啟用，需提供有效 key")
+        headers = _auth_headers_or_skip()
 
         # 先建立一個任務
         create_r = requests.post(
             f"{BACKEND_URL}/api/tasks",
             json={"title": "無效流轉測試任務"},
+            headers=headers,
             timeout=10,
         )
         if create_r.status_code != 201:
@@ -313,6 +323,7 @@ class TestBackendTaskTransition:
         r = requests.post(
             f"{BACKEND_URL}/api/tasks/{task_id}/transition",
             json={"new_state": "Done", "agent": "test", "reason": "嘗試無效轉換"},
+            headers=headers,
             timeout=10,
         )
         assert r.status_code == 400, f"Expected 400, got {r.status_code}: {r.text}"
@@ -322,13 +333,13 @@ class TestBackendTaskTransition:
     @pytestmark_requires_backend
     def test_transition_invalid_state_name_returns_400(self):
         """POST /api/tasks/{id}/transition 不存在的狀態名應回 400。"""
-        if _auth_required:
-            pytest.skip("API Key 認證已啟用，需提供有效 key")
+        headers = _auth_headers_or_skip()
 
         # 先建立一個任務
         create_r = requests.post(
             f"{BACKEND_URL}/api/tasks",
             json={"title": "不存在狀態流轉測試"},
+            headers=headers,
             timeout=10,
         )
         if create_r.status_code != 201:
@@ -339,6 +350,7 @@ class TestBackendTaskTransition:
         r = requests.post(
             f"{BACKEND_URL}/api/tasks/{task_id}/transition",
             json={"new_state": "NonExistentState", "agent": "test"},
+            headers=headers,
             timeout=10,
         )
         assert r.status_code == 400, f"Expected 400, got {r.status_code}: {r.text}"
@@ -346,13 +358,13 @@ class TestBackendTaskTransition:
     @pytestmark_requires_backend
     def test_transition_nonexistent_task_returns_404(self):
         """POST /api/tasks/{id}/transition 對不存在任務應回 404。"""
-        if _auth_required:
-            pytest.skip("API Key 認證已啟用，需提供有效 key")
+        headers = _auth_headers_or_skip()
 
         fake_id = "00000000-0000-0000-0000-000000000000"
         r = requests.post(
             f"{BACKEND_URL}/api/tasks/{fake_id}/transition",
             json={"new_state": "Zhongshu", "agent": "test"},
+            headers=headers,
             timeout=10,
         )
         assert r.status_code == 404, f"Expected 404, got {r.status_code}: {r.text}"
@@ -363,13 +375,13 @@ class TestBackendTaskTransition:
     @pytestmark_requires_backend
     def test_get_task_by_id_returns_200(self):
         """GET /api/tasks/{id} 應回傳任務詳情。"""
-        if _auth_required:
-            pytest.skip("API Key 認證已啟用，需提供有效 key")
+        headers = _auth_headers_or_skip()
 
         # 先建立一個任務
         create_r = requests.post(
             f"{BACKEND_URL}/api/tasks",
             json={"title": "取得任務詳情測試"},
+            headers=headers,
             timeout=10,
         )
         if create_r.status_code != 201:
@@ -427,12 +439,12 @@ class TestBackendAdminSourceMode:
     @pytestmark_requires_backend
     def test_post_source_mode_invalid_mode_returns_400(self):
         """POST /api/admin/source-mode 無效 mode 值應回 400。"""
-        if _auth_required:
-            pytest.skip("API Key 認證已啟用，需提供有效 key")
+        headers = _auth_headers_or_skip()
 
         r = requests.post(
             f"{BACKEND_URL}/api/admin/source-mode",
             json={"mode": "invalid_mode"},
+            headers=headers,
             timeout=10,
         )
         assert r.status_code == 400, f"Expected 400, got {r.status_code}: {r.text}"

@@ -5,26 +5,18 @@
 """
 
 import uuid
+
 import pytest
 import requests
 
+from tests.api_auth import api_key_headers, discover_api_key
+
 BASE = "http://localhost:8000"
+
+
 def _api_key_headers():
-    """若設定了 API_KEY 則回傳認證 header，否則空 dict。"""
-    import os
-    key = os.environ.get("EDICT_API_KEY", "")
-    if not key:
-        try:
-            # Fallback: read from config Settings
-            import sys
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "edict", "backend"))
-            from app.config import get_settings
-            key = get_settings().api_key
-        except Exception:
-            pass
-    if key:
-        return {"X-API-Key": key}
-    return {}
+    """回傳目前測試環境可用的 backend API key headers。"""
+    return api_key_headers()
 
 
 class TestTaskLifecycle:
@@ -216,8 +208,7 @@ class TestAuthFlow:
 
     def test_auth_enforced_when_api_key_set(self):
         """API_KEY 設定時，POST 無 key 應回 401。"""
-        import os
-        api_key = os.environ.get("EDICT_API_KEY", "")
+        api_key = discover_api_key()
         if not api_key:
             pytest.skip("API_KEY 未設定，略過認證測試")
 
@@ -229,8 +220,7 @@ class TestAuthFlow:
 
     def test_auth_passes_with_correct_key(self):
         """正確 API key 的 POST 應成功。"""
-        import os
-        api_key = os.environ.get("EDICT_API_KEY", "")
+        api_key = discover_api_key()
         if not api_key:
             pytest.skip("API_KEY 未設定，略過認證測試")
 

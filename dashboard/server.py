@@ -695,6 +695,54 @@ def modify_task(task_id, updater):
 
 def handle_task_action(task_id, action, reason):
     """Stop/cancel/resume a task from the dashboard."""
+    cfg = _load_task_source_mode()
+    if _task_source_uses_backend(cfg):
+        task = _get_task_record(task_id, cfg=cfg, fallback_to_shadow=False)
+        if not task:
+            return {'ok': False, 'error': f'任務 {task_id} 不存在'}
+
+        old_state = task.get('state', '')
+        _ensure_scheduler(task)
+        _scheduler_snapshot(task, f'task-action-before-{action}')
+
+        if action == 'stop':
+            new_state = 'Blocked'
+            now_text = f'⏸️ 已暫停：{reason}'
+        elif action == 'cancel':
+            new_state = 'Cancelled'
+            now_text = f'🚫 已取消：{reason}'
+        elif action == 'resume':
+            new_state = task.get('_prev_state', 'Doing')
+            now_text = '▶️ 已恢復執行'
+        else:
+            return {'ok': False, 'error': f'未知操作: {action}'}
+
+        try:
+            _transition_task_record(task_id, new_state, reason=now_text, agent='皇上', cfg=cfg)
+            if action in ('stop', 'cancel'):
+                task['block'] = reason or ('皇上叫停' if action == 'stop' else '皇上取消')
+                task['_prev_state'] = old_state
+            else:
+                task['block'] = '無'
+                task.pop('_prev_state', None)
+            if action == 'resume':
+                _scheduler_mark_progress(task, f'恢復到 {new_state}')
+            else:
+                _scheduler_add_flow(task, f'皇上{action}：{reason or "無"}')
+            _patch_task_record(task_id, {
+                'fields': {
+                    'block': task.get('block', '無'),
+                    'prev_state': task.get('_prev_state', ''),
+                    'scheduler': task.get('scheduler', {}),
+                },
+                'producer': 'dashboard-task-action',
+            }, cfg=cfg)
+        except Exception as e:
+            return {'ok': False, 'error': f'DB 任務操作失敗: {e}'}
+
+        label = {'stop': '已叫停', 'cancel': '已取消', 'resume': '已恢復'}[action]
+        return {'ok': True, 'message': f'{task_id} {label}'}
+
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
@@ -717,6 +765,8 @@ def handle_task_action(task_id, action, reason):
         new_state = task.get('_prev_state', 'Doing')
         now_text = '▶️ 已恢復執行'
         flow_remark = f'▶️ 恢復：{reason}'
+    else:
+        return {'ok': False, 'error': f'未知操作: {action}'}
 
     # 統一狀態/流轉寫入入口
     set_task_state(task_id, new_state, now_text)

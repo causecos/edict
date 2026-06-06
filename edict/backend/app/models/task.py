@@ -45,15 +45,15 @@ TERMINAL_STATES = {TaskState.Done, TaskState.Cancelled}
 # 狀態轉換矩陣：每個狀態允許轉換到的目標狀態集合
 # Blocked 態可從任意狀態進入，也可轉回任意非終止態（解鎖後恢復原流程）
 STATE_TRANSITIONS = {
-    TaskState.Pending: {TaskState.Taizi, TaskState.Cancelled},
-    TaskState.Taizi: {TaskState.Zhongshu, TaskState.Cancelled},
+    TaskState.Pending: {TaskState.Taizi, TaskState.Cancelled, TaskState.Blocked},
+    TaskState.Taizi: {TaskState.Zhongshu, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Zhongshu: {TaskState.Menxia, TaskState.Cancelled, TaskState.Blocked},
-    TaskState.Menxia: {TaskState.Assigned, TaskState.Zhongshu, TaskState.Cancelled},
+    TaskState.Menxia: {TaskState.Assigned, TaskState.Zhongshu, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Assigned: {TaskState.Doing, TaskState.Next, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Next: {TaskState.Doing, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Doing: {TaskState.Review, TaskState.Done, TaskState.Blocked, TaskState.Cancelled},
-    TaskState.Review: {TaskState.Done, TaskState.Menxia, TaskState.Doing, TaskState.Cancelled, TaskState.PendingConfirm},
-    TaskState.PendingConfirm: {TaskState.Done, TaskState.Review, TaskState.Cancelled},
+    TaskState.Review: {TaskState.Done, TaskState.Menxia, TaskState.Doing, TaskState.Cancelled, TaskState.PendingConfirm, TaskState.Blocked},
+    TaskState.PendingConfirm: {TaskState.Done, TaskState.Review, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Blocked: {
         TaskState.Taizi,
         TaskState.Zhongshu,

@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import enum
+import re
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import Boolean, Column, DateTime, Enum, Index, String, Text
@@ -44,15 +45,15 @@ TERMINAL_STATES = {TaskState.Done, TaskState.Cancelled}
 # 狀態轉換矩陣：每個狀態允許轉換到的目標狀態集合
 # Blocked 態可從任意狀態進入，也可轉回任意非終止態（解鎖後恢復原流程）
 STATE_TRANSITIONS = {
-    TaskState.Pending: {TaskState.Taizi, TaskState.Cancelled},
-    TaskState.Taizi: {TaskState.Zhongshu, TaskState.Cancelled},
+    TaskState.Pending: {TaskState.Taizi, TaskState.Cancelled, TaskState.Blocked},
+    TaskState.Taizi: {TaskState.Zhongshu, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Zhongshu: {TaskState.Menxia, TaskState.Cancelled, TaskState.Blocked},
-    TaskState.Menxia: {TaskState.Assigned, TaskState.Zhongshu, TaskState.Cancelled},
+    TaskState.Menxia: {TaskState.Assigned, TaskState.Zhongshu, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Assigned: {TaskState.Doing, TaskState.Next, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Next: {TaskState.Doing, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Doing: {TaskState.Review, TaskState.Done, TaskState.Blocked, TaskState.Cancelled},
-    TaskState.Review: {TaskState.Done, TaskState.Menxia, TaskState.Doing, TaskState.Cancelled, TaskState.PendingConfirm},
-    TaskState.PendingConfirm: {TaskState.Done, TaskState.Review, TaskState.Cancelled},
+    TaskState.Review: {TaskState.Done, TaskState.Menxia, TaskState.Doing, TaskState.Cancelled, TaskState.PendingConfirm, TaskState.Blocked},
+    TaskState.PendingConfirm: {TaskState.Done, TaskState.Review, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Blocked: {
         TaskState.Taizi,
         TaskState.Zhongshu,
@@ -96,6 +97,33 @@ STATE_ORG_MAP = {
     TaskState.PendingConfirm: "尚書省",
     TaskState.Pending: "中書省",
 }
+
+FORMAL_TASK_ID_PREFIX = "JJC"
+FORMAL_TASK_ID_RE = re.compile(r"^JJC-(\d{8})-(\d{3})$", re.I)
+
+
+def task_public_id_from_meta(meta: Any) -> str:
+    """從 meta 取對外任務 ID。"""
+    if not isinstance(meta, dict):
+        return ""
+    return str(meta.get("legacy_id") or meta.get("public_id") or "").strip()
+
+
+def format_public_task_id(task_day: date | datetime, sequence: int) -> str:
+    """格式化正式旨意 ID：JJC-YYYYMMDD-NNN。"""
+    if isinstance(task_day, datetime):
+        if task_day.tzinfo is None:
+            task_day = task_day.replace(tzinfo=timezone.utc)
+        task_day = task_day.astimezone(timezone.utc).date()
+    return f"{FORMAL_TASK_ID_PREFIX}-{task_day.strftime('%Y%m%d')}-{sequence:03d}"
+
+
+def parse_public_task_id(task_ref: str) -> tuple[date, int] | None:
+    """解析正式旨意 ID；非正式 prefix（TEST/JJC-TEST/...）返回 None。"""
+    matched = FORMAL_TASK_ID_RE.fullmatch(str(task_ref or "").strip())
+    if not matched:
+        return None
+    return datetime.strptime(matched.group(1), "%Y%m%d").date(), int(matched.group(2))
 
 
 class Task(Base):
@@ -188,13 +216,17 @@ class Task(Base):
         state_value = self.state.value if isinstance(self.state, TaskState) else str(self.state or "")
         meta = self.meta or {}
         scheduler = self.scheduler or {}
-        task_id = str(self.task_id) if self.task_id else ""
+        task_uuid = str(self.task_id) if getattr(self, "task_id", None) is not None else ""
+        task_id = task_public_id_from_meta(meta) or task_uuid
         updated_at = self.updated_at.isoformat() if self.updated_at else ""
+        review_round = int(meta.get("review_round") or 0)
+        prev_state = str(meta.get("_prev_state") or "")
         # 輸出優先取 output 欄位，fallback 到 meta.output
         legacy_output = self.output or meta.get("output") or meta.get("legacy_output", "")
 
         return {
             "task_id": task_id,
+            "uuid_task_id": task_uuid,
             "trace_id": self.trace_id,
             "title": self.title,
             "description": self.description,
@@ -219,6 +251,8 @@ class Task(Base):
             "block": self.block,
             "output": legacy_output,
             "archived": self.archived,
+            "review_round": review_round,
+            "_prev_state": prev_state,
             "templateId": self.template_id,
             "templateParams": self.template_params or {},
             "ac": self.ac,

@@ -178,10 +178,11 @@ class TestBackendTaskCreate:
             assert r.status_code == 201, f"Expected 201, got {r.status_code}: {r.text}"
             data = r.json()
             assert "task_id" in data
+            assert "uuid_task_id" in data
             assert "trace_id" in data
             assert data["state"] == "Taizi"
-            # 驗證 task_id 為有效 UUID
-            uuid.UUID(data["task_id"])
+            assert data["task_id"].startswith("JJC-")
+            uuid.UUID(data["uuid_task_id"])
 
     @pytestmark_requires_backend
     def test_create_task_with_all_fields(self):
@@ -343,8 +344,8 @@ class TestBackendTaskTransition:
         assert r.status_code == 400, f"Expected 400, got {r.status_code}: {r.text}"
 
     @pytestmark_requires_backend
-    def test_transition_nonexistent_task_returns_400(self):
-        """POST /api/tasks/{id}/transition 對不存在任務應回 400（ValueError 被轉為 400）。"""
+    def test_transition_nonexistent_task_returns_404(self):
+        """POST /api/tasks/{id}/transition 對不存在任務應回 404。"""
         if _auth_required:
             pytest.skip("API Key 認證已啟用，需提供有效 key")
 
@@ -354,7 +355,7 @@ class TestBackendTaskTransition:
             json={"new_state": "Zhongshu", "agent": "test"},
             timeout=10,
         )
-        assert r.status_code == 400, f"Expected 400, got {r.status_code}: {r.text}"
+        assert r.status_code == 404, f"Expected 404, got {r.status_code}: {r.text}"
         data = r.json()
         assert "detail" in data
         assert "not found" in data["detail"].lower()
@@ -380,6 +381,8 @@ class TestBackendTaskTransition:
         assert r.status_code == 200
         data = r.json()
         assert data["task_id"] == task_id
+        assert "uuid_task_id" in data
+        uuid.UUID(data["uuid_task_id"])
         assert data["title"] == "取得任務詳情測試"
 
     @pytestmark_requires_backend
@@ -516,10 +519,15 @@ class TestDashboardLiveStatus:
         tasks = data.get("tasks", [])
         if tasks:
             task = tasks[0]
-            # 任務應包含 id 或 task_id
-            assert ("id" in task) or ("task_id" in task)
+            task_id = task.get("id") or task.get("task_id")
+            assert task_id
             assert "title" in task or "name" in task
             assert "state" in task
+            # 正式任務應為 JJC-*；其他保留 TEST/OC/MC 等 prefix，相容舊 UUID 陰影資料
+            assert (
+                task_id.startswith(("JJC-", "TEST-", "OC-", "MC-"))
+                or task_id.count("-") == 4
+            )
 
 
 class TestDashboardI18n:

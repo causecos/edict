@@ -69,7 +69,7 @@ bash scripts/run_loop.sh &
 python3 dashboard/server.py
 
 # 打开浏览器
-open http://127.0.0.1:7891
+open http://127.0.0.1:${DASHBOARD_PORT:-7891}
 ```
 
 > 💡 **看板开箱即用**：`server.py` 内嵌 `dashboard/dashboard.html`，Docker 镜像包含预构建 React 前端
@@ -80,7 +80,7 @@ open http://127.0.0.1:7891
 |----------|------|--------|
 | `dashboard/dashboard.html` | 看板前端（单文件，零依赖，开箱即用） | 🔥 高 |
 | `dashboard/server.py` | API 服务器（stdlib，~2200 行） | 🔥 高 |
-| `agents/*/SOUL.md` | 12 个 Agent 人格模板 | 🔶 中 |
+| `agents/*/SOUL.md` | 11 个 Agent 人格模板 | 🔶 中 |
 | `dashboard/court_discuss.py` | 朝堂议政引擎（多官员 LLM 讨论） | 🔶 中 |
 | `scripts/kanban_update.py` | 看板 CLI + 数据清洗 + 状态机校验（~350 行） | 🔶 中 |
 | `scripts/*.py` | 数据同步 / 自动化脚本 | 🔶 中 |
@@ -188,7 +188,7 @@ python3 scripts/sync_agent_config.py
 
 # 启动服务器验证 API
 python3 dashboard/server.py &
-curl -s http://localhost:7891/api/live-status | python3 -m json.tool | head -20
+curl -s http://localhost:${DASHBOARD_PORT:-7891}/api/live-status | python3 -m json.tool | head -20
 ```
 
 ---

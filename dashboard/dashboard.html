@@ -1884,6 +1884,44 @@ function fmtLocalFull(ts){
   return `${Y}-${M}-${D} ${h}:${m}:${s}`;
 }
 
+const DASHBOARD_VISIBLE_AGENT_IDS = ['taizi','zhongshu','menxia','shangshu','hubu','libu','bingbu','xingbu','gongbu','libu_hr'];
+const DASHBOARD_AGENT_ALIASES = {main:'taizi'};
+function canonicalDashboardAgentId(agentId){
+  const raw = String(agentId||'').trim();
+  return DASHBOARD_AGENT_ALIASES[raw] || raw;
+}
+function isDashboardVisibleAgent(agentId){
+  return DASHBOARD_VISIBLE_AGENT_IDS.includes(canonicalDashboardAgentId(agentId));
+}
+function getDashboardAgents(cfg){
+  if(!cfg || !Array.isArray(cfg.agents)) return [];
+  const picked = new Map();
+  cfg.agents.forEach(ag=>{
+    const canonicalId = canonicalDashboardAgentId(ag.id);
+    if(!DASHBOARD_VISIBLE_AGENT_IDS.includes(canonicalId)) return;
+    const existing = picked.get(canonicalId);
+    if(!existing || ag.id === canonicalId){
+      picked.set(canonicalId, {...ag, canonicalId});
+    }
+  });
+  return DASHBOARD_VISIBLE_AGENT_IDS.filter(id=>picked.has(id)).map(id=>picked.get(id));
+}
+function rebuildAgentDisplayMaps(cfg){
+  Object.keys(AGENT_EMOJI_MAP).forEach(k=>delete AGENT_EMOJI_MAP[k]);
+  Object.keys(AGENT_LABEL_MAP).forEach(k=>delete AGENT_LABEL_MAP[k]);
+  getDashboardAgents(cfg).forEach(ag=>{
+    AGENT_EMOJI_MAP[ag.id] = ag.emoji||'🏛️';
+    AGENT_LABEL_MAP[ag.id] = ag.label||ag.id;
+    const canonicalId = ag.canonicalId || canonicalDashboardAgentId(ag.id);
+    AGENT_EMOJI_MAP[canonicalId] = ag.emoji||'🏛️';
+    AGENT_LABEL_MAP[canonicalId] = ag.label||ag.id;
+  });
+  Object.entries(DASHBOARD_AGENT_ALIASES).forEach(([alias, canonicalId])=>{
+    if(AGENT_LABEL_MAP[canonicalId]) AGENT_LABEL_MAP[alias] = AGENT_LABEL_MAP[canonicalId];
+    if(AGENT_EMOJI_MAP[canonicalId]) AGENT_EMOJI_MAP[alias] = AGENT_EMOJI_MAP[canonicalId];
+  });
+}
+
 /* ══ MODEL CONFIG ══ */
 // Fallback 硬編碼列表，優先從後端 knownModels 動態獲取
 const FALLBACK_MODELS=[
@@ -1911,9 +1949,10 @@ function getModels(cfg){
 }
 function renderModels(cfg){
   if(!cfg||!cfg.agents){document.getElementById('model-grid').innerHTML='<div class="empty" style="grid-column:1/-1">請確保本地服務器已啓動</div>';return}
+  const agents = getDashboardAgents(cfg);
   const models = getModels(cfg);
   const opts=models.map(m=>`<option value="${m.id}">${m.l} (${m.p})</option>`).join('');
-  document.getElementById('model-grid').innerHTML=cfg.agents.map(ag=>`
+  document.getElementById('model-grid').innerHTML=agents.map(ag=>`
     <div class="mc-card">
       <div class="mc-top"><span class="mc-emoji">${ag.emoji||'🏛️'}</span>
         <div><div class="mc-name">${esc(ag.label)} <span style="font-size:11px;color:var(--muted)">${esc(ag.id)}</span></div><div class="mc-role">${esc(ag.role)}</div></div>
@@ -1923,7 +1962,7 @@ function renderModels(cfg){
       <div class="mc-btns"><button class="btn btn-p" id="btn-${ag.id}" onclick="applyModel('${ag.id}')" disabled>應用</button><button class="btn btn-g" onclick="resetMC('${ag.id}')">重置</button></div>
       <div class="mc-st" id="mcs-${ag.id}"></div>
     </div>`).join('');
-  cfg.agents.forEach(ag=>{const s=document.getElementById('sel-'+ag.id);if(s)s.value=ag.model});
+  agents.forEach(ag=>{const s=document.getElementById('sel-'+ag.id);if(s)s.value=ag.model});
 }
 function onMC(id){const s=document.getElementById('sel-'+id),b=document.getElementById('btn-'+id),ag=agentConfig&&agentConfig.agents?agentConfig.agents.find(a=>a.id===id):null;if(!ag||!s)return;b.disabled=s.value===ag.model}
 function resetMC(id){const s=document.getElementById('sel-'+id),b=document.getElementById('btn-'+id),ag=agentConfig&&agentConfig.agents?agentConfig.agents.find(a=>a.id===id):null;if(!ag||!s)return;s.value=ag.model;b.disabled=true}
@@ -1947,7 +1986,8 @@ function renderCL(log){
 /* ══ SKILLS ══ */
 function renderSkills(cfg){
   if(!cfg||!cfg.agents){document.getElementById('skills-grid').innerHTML='<div class="empty">無法加載</div>';return}
-  document.getElementById('skills-grid').innerHTML=cfg.agents.map(ag=>`
+  const agents = getDashboardAgents(cfg);
+  document.getElementById('skills-grid').innerHTML=agents.map(ag=>`
     <div class="sk-card"><div class="sk-hdr"><span class="sk-emoji">${ag.emoji||'🏛️'}</span><span class="sk-name">${esc(ag.label)}</span><span class="sk-cnt">${(ag.skills||[]).length} 技能</span></div>
     <div class="sk-list">${!(ag.skills||[]).length?'<div class="sk-empty">暫無 Skills</div>':(ag.skills||[]).map(sk=>`<div class="sk-item" onclick="openSkill('${esc(ag.id)}','${esc(sk.name)}')"><span class="si-name">📦 ${esc(sk.name)}</span><span class="si-desc">${esc(sk.description||'無描述')}</span><span class="si-arrow">›</span></div>`).join('')}</div>
     <div class="sk-add" onclick="openAddSkillForm('${esc(ag.id)}','${esc(ag.label)}')">＋ 添加技能</div></div>`).join('')
@@ -2096,6 +2136,7 @@ async function loadLive(){
 async function loadAgentConfig(){
   try{
     agentConfig=await fetchJ(API+'/agent-config');
+    rebuildAgentDisplayMaps(agentConfig);
     renderModels(agentConfig);
     renderSkills(agentConfig);
     const log=await fetchJ(API+'/model-change-log').catch(()=>[]);
@@ -2184,12 +2225,9 @@ function renderSessions(tasks){
   if(!tasks) tasks=[];
   // build agent maps from agentConfig if available
   if(agentConfig && agentConfig.agents){
-    agentConfig.agents.forEach(a=>{
-      AGENT_EMOJI_MAP[a.id] = a.emoji||'🏛️';
-      AGENT_LABEL_MAP[a.id] = a.label||a.id;
-    });
+    rebuildAgentDisplayMaps(agentConfig);
   }
-  const sessions = tasks.filter(t=>!isEdict(t));
+  const sessions = tasks.filter(t=>!isEdict(t)).filter(t=>isDashboardVisibleAgent(extractAgent(t)));
   animateCounter(document.getElementById('tb-s'), sessions.length);
   // apply filter
   let filtered = sessions;
@@ -2305,15 +2343,15 @@ function openSessionDetail(jsonStr){
 
 function extractAgent(t){
   const m = (t.id||'').match(/^OC-(\w+)-/);
-  if(m) return m[1];
+  if(m) return canonicalDashboardAgentId(m[1]);
   // MC-* or other prefixes: check sourceMeta
   const sm = t.sourceMeta||{};
   if(sm.agentId){
     // "mc-gateway-xxx" → try to match known agents
-    const known = ['taizi','zhongshu','menxia','shangshu','hubu','libu','bingbu','xingbu','gongbu','zaochao'];
-    for(const k of known){ if(sm.agentId.includes(k)) return k; }
+    const known = [...DASHBOARD_VISIBLE_AGENT_IDS, ...Object.keys(DASHBOARD_AGENT_ALIASES)];
+    for(const k of known){ if(sm.agentId.includes(k)) return canonicalDashboardAgentId(k); }
   }
-  return (t.org||'').replace(/省|部/g,'').toLowerCase();
+  return canonicalDashboardAgentId((t.org||'').replace(/省|部/g,'').toLowerCase());
 }
 
 function timeAgo(iso){

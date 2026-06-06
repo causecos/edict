@@ -39,6 +39,11 @@ def test_review_approve_rejects_incomplete_todos(monkeypatch):
         "save_tasks",
         lambda payload: saved.setdefault("tasks", json.loads(json.dumps(payload, ensure_ascii=False))),
     )
+    monkeypatch.setattr(
+        dashboard_server,
+        "_load_task_source_mode",
+        lambda: {"mode": "json", "backendApiBase": "http://127.0.0.1:8000", "timeoutMs": 5000},
+    )
 
     result = dashboard_server.handle_review_action("JJC-REVIEW-001", "approve", "试图提前完结")
 
@@ -70,6 +75,11 @@ def test_review_approve_allows_complete_todos(monkeypatch):
         dashboard_server,
         "save_tasks",
         lambda payload: saved.setdefault("tasks", json.loads(json.dumps(payload, ensure_ascii=False))),
+    )
+    monkeypatch.setattr(
+        dashboard_server,
+        "_load_task_source_mode",
+        lambda: {"mode": "json", "backendApiBase": "http://127.0.0.1:8000", "timeoutMs": 5000},
     )
 
     result = dashboard_server.handle_review_action("JJC-REVIEW-002", "approve", "全部完成")

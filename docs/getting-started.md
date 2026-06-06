@@ -31,7 +31,7 @@ chmod +x install.sh && ./install.sh
 ```
 
 安装脚本会自动完成：
-- ✅ 创建 12 个 Agent Workspace（`~/.openclaw/workspace-*`）
+- ✅ 创建 11 个 Agent Workspace（`~/.openclaw/workspace-*`）
 - ✅ 写入各省部 SOUL.md 人格文件
 - ✅ 注册 Agent 及权限矩阵到 `openclaw.json`
 - ✅ 配置旨意数据清洗规则
@@ -64,7 +64,7 @@ bash scripts/run_loop.sh
 python3 dashboard/server.py
 
 # 打开浏览器
-open http://127.0.0.1:7891
+open http://127.0.0.1:${DASHBOARD_PORT:-7891}
 ```
 
 > 💡 **提示**：`run_loop.sh` 每 15 秒自动同步数据。可用 `&` 后台运行。
@@ -85,7 +85,7 @@ open http://127.0.0.1:7891
 
 ## 第六步：观察执行过程
 
-打开看板 http://127.0.0.1:7891
+打开看板 http://127.0.0.1:${DASHBOARD_PORT:-7891}（可透過環境變數 `DASHBOARD_PORT` / `BACKEND_PORT` 自訂端口）
 
 1. **📋 旨意看板** — 观察任务在各状态之间流转
 2. **🔭 省部调度** — 查看各部门工作分布

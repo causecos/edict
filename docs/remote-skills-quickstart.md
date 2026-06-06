@@ -7,7 +7,7 @@
 ```bash
 # 确保你在项目根目录
 python3 dashboard/server.py
-# 输出: 三省六部看板启动 → http://127.0.0.1:7891
+# 输出: 三省六部看板启动 → http://127.0.0.1:${DASHBOARD_PORT:-7891}
 ```
 
 ### 2. 添加默认 Skill（CLI）
@@ -43,7 +43,7 @@ python3 scripts/skill_manager.py list-remote
 ### 4. 查看 API 响应
 
 ```bash
-curl http://localhost:7891/api/remote-skills-list | jq .
+curl http://localhost:${DASHBOARD_PORT:-7891}/api/remote-skills-list | jq .
 
 # 输出:
 # {
@@ -118,7 +118,7 @@ python3 scripts/skill_manager.py remove-remote \
 
 ### 在看板中添加 Remote Skill
 
-1. 打开 http://localhost:7891
+1. 打开 http://localhost:${DASHBOARD_PORT:-7891}
 2. 进入 🔧 **技能配置** 面板
 3. 点击 **➕ 添加远程 Skill** 按钮
 4. 填写表单：
@@ -212,7 +212,7 @@ python3 scripts/skill_manager.py add-remote \
 
 **请求：**
 ```bash
-curl -X POST http://localhost:7891/api/add-remote-skill \
+curl -X POST http://localhost:${DASHBOARD_PORT:-7891}/api/add-remote-skill \
   -H "Content-Type: application/json" \
   -d '{
     "agentId": "zhongshu",
@@ -241,7 +241,7 @@ curl -X POST http://localhost:7891/api/add-remote-skill \
 列出所有远程 skills。
 
 ```bash
-curl http://localhost:7891/api/remote-skills-list
+curl http://localhost:${DASHBOARD_PORT:-7891}/api/remote-skills-list
 ```
 
 **响应:**
@@ -270,7 +270,7 @@ curl http://localhost:7891/api/remote-skills-list
 更新远程 skill 为最新版本。
 
 ```bash
-curl -X POST http://localhost:7891/api/update-remote-skill \
+curl -X POST http://localhost:${DASHBOARD_PORT:-7891}/api/update-remote-skill \
   -H "Content-Type: application/json" \
   -d '{
     "agentId": "zhongshu",
@@ -283,7 +283,7 @@ curl -X POST http://localhost:7891/api/update-remote-skill \
 移除远程 skill。
 
 ```bash
-curl -X POST http://localhost:7891/api/remove-remote-skill \
+curl -X POST http://localhost:${DASHBOARD_PORT:-7891}/api/remove-remote-skill \
   -H "Content-Type: application/json" \
   -d '{
     "agentId": "zhongshu",

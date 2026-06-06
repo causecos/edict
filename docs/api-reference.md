@@ -2,8 +2,8 @@
 
 > **版本**：v2.0.0  
 > **後端框架**：FastAPI  
-> **基礎 URL**：`http://127.0.0.1:8000`（可透過環境變數 `PORT` 設定）  
-> **Dashboard 端口**：`7891`（可透過 `DASHBOARD_PORT` / `EDICT_DASHBOARD_PORT` 設定）
+> **基礎 URL**：`http://127.0.0.1:${BACKEND_PORT:-8000}`（可透過環境變數 `BACKEND_PORT` 設定）  
+> **Dashboard 端口**：`${DASHBOARD_PORT:-7891}`（可透過 `DASHBOARD_PORT` / `EDICT_DASHBOARD_PORT` 設定）
 
 ---
 
@@ -18,7 +18,7 @@
 
 ---
 
-## 一、Backend API（FastAPI，端口 8000）
+## 一、Backend API（FastAPI，端口 ${BACKEND_PORT:-8000}）
 
 ### 1.1 系統端點
 
@@ -262,7 +262,7 @@ API 根路徑，回傳可用端點清單。
 
 #### `GET /api/agents`
 
-列出所有可用 Agent（12 個角色）。
+列出所有可用 Agent（11 個角色）。
 
 **回應範例**：
 ```json
@@ -374,7 +374,7 @@ API 根路徑，回傳可用端點清單。
 ```json
 {
   "mode": "db",
-  "backendApiBase": "http://127.0.0.1:8000",
+  "backendApiBase": "http://127.0.0.1:${BACKEND_PORT:-8000}",
   "timeoutMs": 3000
 }
 ```
@@ -406,7 +406,7 @@ API 根路徑，回傳可用端點清單。
 
 ---
 
-## 二、Dashboard API（Python HTTP Server，端口 7891）
+## 二、Dashboard API（Python HTTP Server，端口 ${DASHBOARD_PORT:-7891}）
 
 ### 2.1 系統與資料源
 

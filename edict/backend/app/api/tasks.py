@@ -1,7 +1,6 @@
 """Tasks API — 任務的 CRUD 和狀態流轉。"""
 from __future__ import annotations
 
-import uuid
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -49,8 +48,17 @@ class TaskSchedulerUpdate(BaseModel):
     scheduler: dict
 
 
+class TaskDashboardPatch(BaseModel):
+    fields: dict = Field(default_factory=dict)
+    flow_entry: dict | None = None
+    progress_entry: dict | None = None
+    meta_updates: dict | None = None
+    producer: str = "dashboard"
+
+
 class TaskOut(BaseModel):
     task_id: str
+    uuid_task_id: str
     trace_id: str
     title: str
     description: str
@@ -149,15 +157,16 @@ async def create_task(
         tags=body.tags,
         meta=body.meta,
     )
-    return {"task_id": str(task.task_id), "trace_id": str(task.trace_id), "state": task.state.value}
+    response = task.to_dict()
+    return {"task_id": response["task_id"], "uuid_task_id": response["uuid_task_id"], "trace_id": str(task.trace_id), "state": task.state.value}
 
 
 @router.get("/{task_id}")
 async def get_task(
-    task_id: uuid.UUID,
+    task_id: str,
     svc: TaskService = Depends(get_task_service),
 ):
-    """獲取任務詳情 — 依 task_id (UUID) 查詢。"""
+    """獲取任務詳情 — 支援對外 JJC/TEST/OC/MC ID 與內部 UUID。"""
     try:
         task = await svc.get_task(task_id)
         return task.to_dict()
@@ -167,7 +176,7 @@ async def get_task(
 
 @router.post("/{task_id}/transition", dependencies=[Depends(require_api_key)])
 async def transition_task(
-    task_id: uuid.UUID,
+    task_id: str,
     body: TaskTransition,
     svc: TaskService = Depends(get_task_service),
 ):
@@ -188,14 +197,17 @@ async def transition_task(
             agent=body.agent,
             reason=body.reason,
         )
-        return {"task_id": str(task.task_id), "state": task.state.value, "message": "ok"}
+        response = task.to_dict()
+        return {"task_id": response["task_id"], "uuid_task_id": response["uuid_task_id"], "state": task.state.value, "message": "ok"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        detail = str(e)
+        status_code = 404 if "Task not found" in detail else 400
+        raise HTTPException(status_code=status_code, detail=detail)
 
 
 @router.post("/{task_id}/dispatch", dependencies=[Depends(require_api_key)])
 async def dispatch_task(
-    task_id: uuid.UUID,
+    task_id: str,
     agent: str = Query(description="目標 agent"),
     message: str = Query(default="", description="派發消息"),
     svc: TaskService = Depends(get_task_service),
@@ -214,7 +226,7 @@ async def dispatch_task(
 
 @router.post("/{task_id}/progress", dependencies=[Depends(require_api_key)])
 async def add_progress(
-    task_id: uuid.UUID,
+    task_id: str,
     body: TaskProgress,
     svc: TaskService = Depends(get_task_service),
 ):
@@ -228,7 +240,7 @@ async def add_progress(
 
 @router.put("/{task_id}/todos", dependencies=[Depends(require_api_key)])
 async def update_todos(
-    task_id: uuid.UUID,
+    task_id: str,
     body: TaskTodoUpdate,
     svc: TaskService = Depends(get_task_service),
 ):
@@ -242,7 +254,7 @@ async def update_todos(
 
 @router.put("/{task_id}/scheduler", dependencies=[Depends(require_api_key)])
 async def update_scheduler(
-    task_id: uuid.UUID,
+    task_id: str,
     body: TaskSchedulerUpdate,
     svc: TaskService = Depends(get_task_service),
 ):
@@ -250,5 +262,26 @@ async def update_scheduler(
     try:
         await svc.update_scheduler(task_id, body.scheduler)
         return {"message": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/{task_id}/dashboard", dependencies=[Depends(require_api_key)])
+async def patch_dashboard_task(
+    task_id: str,
+    body: TaskDashboardPatch,
+    svc: TaskService = Depends(get_task_service),
+):
+    """Dashboard 專用兼容補丁：統一更新 legacy 欄位 / scheduler / meta / flow / progress。"""
+    try:
+        task = await svc.patch_dashboard_fields(
+            task_id,
+            fields=body.fields,
+            flow_entry=body.flow_entry,
+            progress_entry=body.progress_entry,
+            meta_updates=body.meta_updates,
+            producer=body.producer,
+        )
+        return task.to_dict()
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

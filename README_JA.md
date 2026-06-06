@@ -22,7 +22,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/OpenClaw-Required-blue?style=flat-square" alt="OpenClaw">
   <img src="https://img.shields.io/badge/Python-3.9+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/Agents-12_Specialized-8B5CF6?style=flat-square" alt="Agents">
+  <img src="https://img.shields.io/badge/Agents-11_Specialized-8B5CF6?style=flat-square" alt="Agents">
   <img src="https://img.shields.io/badge/Dashboard-Real--time-F59E0B?style=flat-square" alt="Dashboard">
   <img src="https://img.shields.io/badge/License-MIT-22C55E?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Frontend-React_18-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React">
@@ -300,7 +300,7 @@ CrewAI や AutoGen の Agent 協調モードは **「完了したら提出」** 
 ```bash
 docker run -p 7891:7891 cft0808/sansheng-demo
 ```
-http://localhost:7891 を開けば軍機処ダッシュボードを体験できます。
+http://localhost:${DASHBOARD_PORT:-7891} を開けば軍機処ダッシュボードを体験できます。（ポートは環境変数 `DASHBOARD_PORT` / `BACKEND_PORT` でカスタマイズ可能）
 
 <details>
 <summary><b>⚠️ <code>exec format error</code> が発生した場合（クリックで展開）</b></summary>
@@ -362,7 +362,7 @@ bash scripts/run_loop.sh &      # データ更新ループ
 python3 dashboard/server.py     # ダッシュボードサーバー
 
 # ブラウザで開く
-open http://127.0.0.1:7891
+open http://127.0.0.1:${DASHBOARD_PORT:-7891}
 ```
 
 <details>
@@ -379,7 +379,7 @@ bash edict.sh start-all
 bash edict.sh stop-all
 
 # 個別管理
-systemctl --user start edict-backend          # FastAPI バックエンド (port 8000)
+systemctl --user start edict-backend          # FastAPI バックエンド (port ${BACKEND_PORT:-8000})
 systemctl --user start edict-dispatch-worker  # 配分 Worker
 systemctl --user start edict-orchestrator     # DAG オーケストレータ
 systemctl --user start edict-outbox-relay     # Outbox Relay
@@ -483,7 +483,7 @@ Edict のタスクフローは **PostgreSQL + Redis Streams** 駆動の非同期
 
 | サービス | 技術 | 説明 |
 |------|------|------|
-| **バックエンド API** | FastAPI + SQLAlchemy | タスク/監査/Outbox の永続化、RESTful API（port 8000） |
+| **バックエンド API** | FastAPI + SQLAlchemy | タスク/監査/Outbox の永続化、RESTful API（port ${BACKEND_PORT:-8000}） |
 | **EventBus** | Redis Streams | イベントバス、サービス間の Pub/Sub 疎結合 |
 | **Dispatch Worker** | Python asyncio | 並列配分、指数バックオフリトライ + リソースロック |
 | **Orchestrator** | DAG 解析 | タスク分解と依存関係のトポロジカルソート |
@@ -517,7 +517,7 @@ bash edict.sh status
 
 ```
 edict/
-├── agents/                     # 12 Agent の人格テンプレート
+├── agents/                     # 11 Agent の人格テンプレート
 │   ├── taizi/SOUL.md           # 太子 · メッセージ振り分け（勅令タイトル規範を含む）
 │   ├── zhongshu/SOUL.md        # 中書省 · 立案中枢
 │   ├── menxia/SOUL.md          # 門下省 · 審議チェック
@@ -656,7 +656,7 @@ python3 scripts/skill_manager.py update-remote \
 
 ```bash
 # リモート skill を追加
-curl -X POST http://localhost:7891/api/add-remote-skill \
+curl -X POST http://localhost:${DASHBOARD_PORT:-7891}/api/add-remote-skill \
   -H "Content-Type: application/json" \
   -d '{
     "agentId": "menxia",
@@ -666,7 +666,7 @@ curl -X POST http://localhost:7891/api/add-remote-skill \
   }'
 
 # 全リモート skills を表示
-curl http://localhost:7891/api/remote-skills-list
+curl http://localhost:${DASHBOARD_PORT:-7891}/api/remote-skills-list
 ```
 
 **デフォルトでインポート可能な Skill：**
@@ -742,7 +742,7 @@ curl http://localhost:7891/api/remote-skills-list
 
 1. **Agent 登録状態を確認**：
 ```bash
-curl -s http://127.0.0.1:7891/api/agents-status | python3 -m json.tool
+curl -s http://127.0.0.1:${DASHBOARD_PORT:-7891}/api/agents-status | python3 -m json.tool
 ```
 `taizi` agent の `statusLabel` が `alive` であることを確認します。
 
@@ -760,7 +760,7 @@ grep -i "error\|fail\|unknown" /tmp/openclaw/openclaw-*.log | tail -20
 4. **強制リトライ**：
 ```bash
 # 手動で巡回スキャンをトリガー（スタックしたタスクを自動リトライ）
-curl -X POST http://127.0.0.1:7891/api/scheduler-scan \
+curl -X POST http://127.0.0.1:${DASHBOARD_PORT:-7891}/api/scheduler-scan \
   -H 'Content-Type: application/json' -d '{"thresholdSec":60}'
 ```
 
@@ -823,7 +823,7 @@ find ~/ai-base/core/edict/edict/backend -type d -name "__pycache__" -exec rm -rf
 systemctl --user restart edict-backend
 
 # 3. 検証（agents を例に）
-curl -s http://127.0.0.1:8000/api/agents | python3 -c "
+curl -s http://127.0.0.1:${BACKEND_PORT:-8000}/api/agents | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 print(f'Agent count: {len(d[\"agents\"])}')  # 11 であるべき
@@ -930,7 +930,7 @@ for a in d['agents']:
 
 ここで見られるもの：
 
-- 🏛️ **アーキテクチャ分解** —— 三省六部はいかに権力分立と抑制均衡を実現するのか？12 の Agent は各々何を司るのか？
+- 🏛️ **アーキテクチャ分解** —— 三省六部はいかに権力分立と抑制均衡を実現するのか？11 の Agent は各々何を司るのか？
 - 🔥 **失敗談の振り返り** —— Agent が喧嘩したらどうする？Token を使い果たしたらどう節約する？門下省はなぜいつも封駁するのか？
 - 🛠️ **Issue 修正実録** —— すべてのバグは一道の奏折、朕がいかに朱筆を入れるかを見よ
 - 💡 **Token 節約術** —— 1/10 の token で門下省の審査効果を実現する秘密

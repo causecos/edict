@@ -18,7 +18,7 @@ class Thought(Base):
     __tablename__ = "thoughts"
 
     thought_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    trace_id = Column(String(32), nullable=False, index=True, comment="關聯任務ID")
+    trace_id = Column(String(64), nullable=False, index=True, comment="關聯任務ID")
     agent = Column(String(32), nullable=False, index=True, comment="Agent 標識")
     step = Column(Integer, nullable=False, default=0, comment="思考步驟序號")
     type = Column(

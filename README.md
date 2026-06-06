@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <sub>12 个 AI Agent（11 个业务角色 + 1 个兼容角色）组成三省六部：太子分拣、中书省规划、门下省审核封驳、尚书省派发、六部+吏部并行执行。<br>比 CrewAI 多一层<b>制度性审核</b>，比 AutoGen 多一个<b>实时看板</b>。</sub>
+  <sub>11 个 AI Agent（10 个业务角色 + 1 个兼容角色）组成三省六部：太子分拣、中书省规划、门下省审核封驳、尚书省派发、六部+吏部并行执行。<br>比 CrewAI 多一层<b>制度性审核</b>，比 AutoGen 多一个<b>实时看板</b>。</sub>
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/OpenClaw-Required-blue?style=flat-square" alt="OpenClaw">
   <img src="https://img.shields.io/badge/Python-3.9+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/Agents-12_Specialized-8B5CF6?style=flat-square" alt="Agents">
+  <img src="https://img.shields.io/badge/Agents-11_Specialized-8B5CF6?style=flat-square" alt="Agents">
   <img src="https://img.shields.io/badge/Dashboard-Real--time-F59E0B?style=flat-square" alt="Dashboard">
   <img src="https://img.shields.io/badge/License-MIT-22C55E?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Frontend-React_18-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React">
@@ -300,7 +300,7 @@ CrewAI 和 AutoGen 的 Agent 协作模式是 **"做完就交"**——没有人�
 ```bash
 docker run -p 7891:7891 cft0808/sansheng-demo
 ```
-打开 http://localhost:7891 即可体验军机处看板。
+打开 http://localhost:${DASHBOARD_PORT:-7891} 即可体验军机处看板。（可透過環境變數 `DASHBOARD_PORT` / `BACKEND_PORT` 自訂端口）
 
 <details>
 <summary><b>⚠️ 遇到 <code>exec format error</code>？（点击展开）</b></summary>
@@ -362,7 +362,7 @@ bash scripts/run_loop.sh &      # 数据刷新循环
 python3 dashboard/server.py     # 看板服务器
 
 # 打开浏览器
-open http://127.0.0.1:7891
+open http://127.0.0.1:${DASHBOARD_PORT:-7891}
 ```
 
 <details>
@@ -379,7 +379,7 @@ bash edict.sh start-all
 bash edict.sh stop-all
 
 # 個別管理
-systemctl --user start edict-backend       # FastAPI 後端 (port 8000)
+systemctl --user start edict-backend       # FastAPI 後端 (port ${BACKEND_PORT:-8000})
 systemctl --user start edict-dispatch-worker  # 派發 Worker
 systemctl --user start edict-orchestrator  # DAG 編排器
 systemctl --user start edict-outbox-relay  # Outbox Relay
@@ -483,7 +483,7 @@ Edict 的任務流轉由 **PostgreSQL + Redis Streams** 驅動的異步後端支
 
 | 服務 | 技術 | 說明 |
 |------|------|------|
-| **後端 API** | FastAPI + SQLAlchemy | 任務/審計/Outbox 持久化，RESTful API（port 8000） |
+| **後端 API** | FastAPI + SQLAlchemy | 任務/審計/Outbox 持久化，RESTful API（port ${BACKEND_PORT:-8000}） |
 | **EventBus** | Redis Streams | 事件匯流排，服務間發布/訂閱解耦 |
 | **Dispatch Worker** | Python asyncio | 並行派發，指數退避重試 + 資源鎖 |
 | **Orchestrator** | DAG 解析 | 任務分解與依賴拓撲排序 |
@@ -517,7 +517,7 @@ bash edict.sh status
 
 ```
 edict/
-├── agents/                     # 12 个 Agent 的人格模板
+├── agents/                     # 11 个 Agent 的人格模板
 │   ├── taizi/SOUL.md           # 太子 · 消息分拣（含旨意标题规范）
 │   ├── zhongshu/SOUL.md        # 中书省 · 规划中枢
 │   ├── menxia/SOUL.md          # 门下省 · 审议把关
@@ -656,7 +656,7 @@ python3 scripts/skill_manager.py update-remote \
 
 ```bash
 # 添加远程 skill
-curl -X POST http://localhost:7891/api/add-remote-skill \
+curl -X POST http://localhost:${DASHBOARD_PORT:-7891}/api/add-remote-skill \
   -H "Content-Type: application/json" \
   -d '{
     "agentId": "menxia",
@@ -666,7 +666,7 @@ curl -X POST http://localhost:7891/api/add-remote-skill \
   }'
 
 # 查看所有远程 skills
-curl http://localhost:7891/api/remote-skills-list
+curl http://localhost:${DASHBOARD_PORT:-7891}/api/remote-skills-list
 ```
 
 **默认可导入 Skill：**
@@ -741,7 +741,7 @@ curl http://localhost:7891/api/remote-skills-list
 
 1. **检查 Agent 注册状态**：
 ```bash
-curl -s http://127.0.0.1:7891/api/agents-status | python3 -m json.tool
+curl -s http://127.0.0.1:${DASHBOARD_PORT:-7891}/api/agents-status | python3 -m json.tool
 ```
 确认 `taizi` agent 的 `statusLabel` 是 `alive`。
 
@@ -759,7 +759,7 @@ grep -i "error\|fail\|unknown" /tmp/openclaw/openclaw-*.log | tail -20
 4. **强制重试**：
 ```bash
 # 手动触发巡检扫描（自动重试卡住的任务）
-curl -X POST http://127.0.0.1:7891/api/scheduler-scan \
+curl -X POST http://127.0.0.1:${DASHBOARD_PORT:-7891}/api/scheduler-scan \
   -H 'Content-Type: application/json' -d '{"thresholdSec":60}'
 ```
 
@@ -822,7 +822,7 @@ find ~/ai-base/core/edict/edict/backend -type d -name "__pycache__" -exec rm -rf
 systemctl --user restart edict-backend
 
 # 3. 驗證（以 agents 為例）
-curl -s http://127.0.0.1:8000/api/agents | python3 -c "
+curl -s http://127.0.0.1:${BACKEND_PORT:-8000}/api/agents | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 print(f'Agent count: {len(d[\"agents\"])}')  # 應為 11
@@ -929,7 +929,7 @@ for a in d['agents']:
 
 你会看到：
 
-- 🏛️ **架构拆解** —— 三省六部到底怎么分权制衡的？12 个 Agent 各司何职？
+- 🏛️ **架构拆解** —— 三省六部到底怎么分权制衡的？11 个 Agent 各司何职？
 - 🔥 **踩坑复盘** —— Agent 吵架了怎么办？Token 烧光了怎么省？门下省为什么总封驳？
 - 🛠️ **Issue 修复实录** —— 每个 bug 都是一道奏折，看朕如何批红
 - 💡 **Token 省钱术** —— 用 1/10 的 token 跑出门下省审核效果的秘密

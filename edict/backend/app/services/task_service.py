@@ -10,15 +10,23 @@
 
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Any
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, cast
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.event import Event
 from ..models.outbox import OutboxEvent
-from ..models.task import Task, TaskState, STATE_TRANSITIONS, TERMINAL_STATES
+from ..models.task import (
+    STATE_TRANSITIONS,
+    TERMINAL_STATES,
+    Task,
+    TaskState,
+    format_public_task_id,
+    parse_public_task_id,
+    task_public_id_from_meta,
+)
 from .event_bus import (
     TOPIC_TASK_AUDIT,
     TOPIC_TASK_CREATED,
@@ -28,6 +36,7 @@ from .event_bus import (
 )
 
 log = logging.getLogger("edict.task_service")
+PUBLIC_TASK_ID_LOCK_KEY = 2026060501
 
 
 class TaskService:
@@ -59,6 +68,128 @@ class TaskService:
                 return val
         return (fallback or "").strip()
 
+    @staticmethod
+    def _task_day(task: Task) -> date:
+        created_at = task.created_at or datetime.now(timezone.utc)
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        else:
+            created_at = created_at.astimezone(timezone.utc)
+        return created_at.date()
+
+    @staticmethod
+    def _day_bounds(task_day: date) -> tuple[datetime, datetime]:
+        day_start = datetime.combine(task_day, datetime.min.time(), tzinfo=timezone.utc)
+        return day_start, day_start + timedelta(days=1)
+
+    @staticmethod
+    def _task_public_id(task: Task) -> str:
+        public_id = task_public_id_from_meta(task.meta)
+        return public_id or (str(task.task_id) if getattr(task, "task_id", None) is not None else "")
+
+    @staticmethod
+    def _has_custom_public_id(task: Task) -> bool:
+        public_id = task_public_id_from_meta(task.meta)
+        return bool(public_id and parse_public_task_id(public_id) is None)
+
+    @staticmethod
+    def _set_public_task_id(task: Task, public_id: str) -> bool:
+        meta = dict(cast(Any, task.meta) or {})
+        if str(meta.get("legacy_id") or "").strip() == public_id:
+            return False
+        meta["legacy_id"] = public_id
+        task.meta = cast(Any, meta)
+        return True
+
+    async def _list_day_tasks(self, task_day: date) -> list[Task]:
+        day_start, day_end = self._day_bounds(task_day)
+        stmt = (
+            select(Task)
+            .where(and_(Task.created_at >= day_start, Task.created_at < day_end))
+            .order_by(Task.created_at.asc(), Task.task_id.asc())
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def _ensure_public_ids(self, tasks: list[Task], *, persist: bool) -> None:
+        if not tasks:
+            return
+        pending_days = sorted({self._task_day(task) for task in tasks if not task_public_id_from_meta(task.meta)})
+        if not pending_days:
+            return
+
+        if persist:
+            await self.db.execute(select(func.pg_advisory_xact_lock(PUBLIC_TASK_ID_LOCK_KEY)))
+
+        fallback_by_day: dict[date, list[Task]] = {}
+        for task in tasks:
+            fallback_by_day.setdefault(self._task_day(task), []).append(task)
+
+        for task_day in pending_days:
+            day_tasks = await self._list_day_tasks(task_day)
+            if not day_tasks:
+                day_tasks = sorted(
+                    fallback_by_day.get(task_day, []),
+                    key=lambda item: (
+                        item.created_at or datetime.now(timezone.utc),
+                        str(item.task_id or ""),
+                    ),
+                )
+            formal_tasks = [task for task in day_tasks if not self._has_custom_public_id(task)]
+            for seq, day_task in enumerate(formal_tasks, start=1):
+                self._set_public_task_id(day_task, format_public_task_id(task_day, seq))
+
+    async def _resolve_task_uuid(self, task_ref: str | uuid.UUID) -> uuid.UUID:
+        if isinstance(task_ref, uuid.UUID):
+            return task_ref
+
+        raw = str(task_ref or "").strip()
+        if not raw:
+            raise ValueError("Task ref is empty")
+
+        try:
+            return uuid.UUID(raw)
+        except ValueError:
+            pass
+
+        stmt = (
+            select(Task)
+            .where(
+                or_(
+                    Task.meta["legacy_id"].astext == raw,
+                    Task.meta["public_id"].astext == raw,
+                    Task.tags.contains([raw]),
+                )
+            )
+            .order_by(Task.created_at.desc(), Task.task_id.desc())
+        )
+        result = await self.db.execute(stmt)
+        task = result.scalars().first()
+        if task is not None:
+            return cast(uuid.UUID, task.task_id)
+
+        parsed = parse_public_task_id(raw)
+        if parsed:
+            task_day, seq = parsed
+            day_tasks = await self._list_day_tasks(task_day)
+            formal_tasks = [item for item in day_tasks if not self._has_custom_public_id(item)]
+            for index, day_task in enumerate(formal_tasks, start=1):
+                self._set_public_task_id(day_task, format_public_task_id(task_day, index))
+            if 1 <= seq <= len(formal_tasks):
+                return cast(uuid.UUID, formal_tasks[seq - 1].task_id)
+
+        raise ValueError(f"Task not found: {task_ref}")
+
+    async def _get_task_for_update(self, task_ref: str | uuid.UUID) -> Task:
+        task_uuid = await self._resolve_task_uuid(task_ref)
+        stmt = select(Task).where(Task.task_id == task_uuid).with_for_update()
+        result = await self.db.execute(stmt)
+        task = result.scalar_one_or_none()
+        if task is None:
+            raise ValueError(f"Task not found: {task_ref}")
+        await self._ensure_public_ids([task], persist=True)
+        return task
+
     @classmethod
     def _dispatch_snapshot(cls, task: Task, *, message: str = "") -> dict[str, Any]:
         """生成可直接給 Event Bus / Dispatcher 的任務快照。
@@ -67,7 +198,8 @@ class TaskService:
         """
         report = cls._report_text(task, fallback=message)
         return {
-            "task_id": str(task.task_id),
+            "task_id": cls._task_public_id(task),
+            "uuid_task_id": str(task.task_id),
             "title": task.title,
             "description": task.description or "",
             "state": task.state.value if isinstance(task.state, TaskState) else str(task.state or ""),
@@ -170,6 +302,7 @@ class TaskService:
         self.db.add(task)
         # flush 讓 task.task_id 可被 outbox trace_id 參照
         await self.db.flush()
+        await self._ensure_public_ids([task], persist=True)
 
         # 事件寫入 outbox — 與 task 同一事務，原子提交
         outbox = OutboxEvent(
@@ -195,7 +328,7 @@ class TaskService:
 
     async def transition_state(
         self,
-        task_id: uuid.UUID,
+        task_id: str | uuid.UUID,
         new_state: TaskState,
         agent: str = "system",
         reason: str = "",
@@ -209,11 +342,7 @@ class TaskService:
         4. commit 釋放行鎖
         """
         # 行級排他鎖 — 串行化同一任務的並發寫入
-        stmt = select(Task).where(Task.task_id == task_id).with_for_update()
-        result = await self.db.execute(stmt)
-        task = result.scalar_one_or_none()
-        if task is None:
-            raise ValueError(f"Task not found: {task_id}")
+        task = await self._get_task_for_update(task_id)
 
         old_state = task.state
 
@@ -283,7 +412,7 @@ class TaskService:
 
     async def request_dispatch(
         self,
-        task_id: uuid.UUID,
+        task_id: str | uuid.UUID,
         target_agent: str,
         message: str = "",
     ):
@@ -322,7 +451,7 @@ class TaskService:
 
     async def add_progress(
         self,
-        task_id: uuid.UUID,
+        task_id: str | uuid.UUID,
         agent: str,
         content: str,
     ) -> Task:
@@ -356,7 +485,7 @@ class TaskService:
 
     async def update_todos(
         self,
-        task_id: uuid.UUID,
+        task_id: str | uuid.UUID,
         todos: list[dict],
     ) -> Task:
         task = await self._get_task(task_id)
@@ -373,7 +502,7 @@ class TaskService:
 
     async def update_scheduler(
         self,
-        task_id: uuid.UUID,
+        task_id: str | uuid.UUID,
         scheduler: dict,
     ) -> Task:
         task = await self._get_task(task_id)
@@ -388,11 +517,95 @@ class TaskService:
         await self.db.commit()
         return task
 
+    async def patch_dashboard_fields(
+        self,
+        task_id: str | uuid.UUID,
+        *,
+        fields: dict[str, Any] | None = None,
+        flow_entry: dict[str, Any] | None = None,
+        progress_entry: dict[str, Any] | None = None,
+        meta_updates: dict[str, Any] | None = None,
+        producer: str = "dashboard",
+    ) -> Task:
+        """更新 Dashboard 專用兼容欄位，供舊看板在 DB 模式下讀寫同一路徑。"""
+        task = await self._get_task_for_update(task_id)
+
+        fields = fields or {}
+        raw_meta = cast(Any, task.meta) or {}
+        meta = cast(dict[str, Any], dict(raw_meta))
+
+        scalar_map = {
+            'now': 'now',
+            'block': 'block',
+            'eta': 'eta',
+            'output': 'output',
+            'org': 'org',
+            'official': 'official',
+            'archived': 'archived',
+            'ac': 'ac',
+        }
+        for key, attr in scalar_map.items():
+            if key in fields and fields[key] is not None:
+                setattr(task, attr, fields[key])
+
+        if 'scheduler' in fields and fields['scheduler'] is not None:
+            task.scheduler = fields['scheduler']
+        if 'todos' in fields and fields['todos'] is not None:
+            task.todos = fields['todos']
+        if 'template_id' in fields and fields['template_id'] is not None:
+            task.template_id = fields['template_id']
+        if 'template_params' in fields and fields['template_params'] is not None:
+            task.template_params = fields['template_params']
+        if 'target_dept' in fields and fields['target_dept'] is not None:
+            task.target_dept = fields['target_dept']
+        if 'assignee_org' in fields and fields['assignee_org'] is not None:
+            task.assignee_org = fields['assignee_org']
+
+        if 'review_round' in fields and fields['review_round'] is not None:
+            meta['review_round'] = int(fields['review_round'])
+        if 'prev_state' in fields:
+            prev_state = fields['prev_state']
+            if prev_state:
+                meta['_prev_state'] = str(prev_state)
+            else:
+                meta.pop('_prev_state', None)
+        if meta_updates:
+            meta.update(meta_updates)
+        task.meta = cast(Any, meta)
+
+        if flow_entry:
+            flow_log = list(cast(list[dict[str, Any]], cast(Any, task.flow_log) or []))
+            flow_log.append(flow_entry)
+            task.flow_log = cast(Any, flow_log)
+        if progress_entry:
+            progress_log = list(cast(list[dict[str, Any]], cast(Any, task.progress_log) or []))
+            progress_log.append(progress_entry)
+            task.progress_log = cast(Any, progress_log)
+
+        task.updated_at = cast(Any, datetime.now(timezone.utc))
+        self._record_audit_event(
+            task,
+            event_type="task.dashboard.patch",
+            producer=producer,
+            payload=self._audit_snapshot(
+                task,
+                message="Dashboard patch",
+                fields=fields,
+                flow_entry=flow_entry,
+                progress_entry=progress_entry,
+                meta_updates=meta_updates,
+            ),
+        )
+        await self.db.commit()
+        return task
+
     # ── 查詢 ──
 
-    async def get_task(self, task_id: uuid.UUID) -> Task:
+    async def get_task(self, task_id: str | uuid.UUID) -> Task:
         """依 task_id 查詢單一任務，不存在時拋 ValueError。"""
-        return await self._get_task(task_id)
+        task = await self._get_task(task_id)
+        await self._ensure_public_ids([task], persist=False)
+        return task
 
     async def list_tasks(
         self,
@@ -419,7 +632,9 @@ class TaskService:
             stmt = stmt.where(and_(*conditions))
         stmt = stmt.order_by(Task.created_at.desc()).limit(limit).offset(offset)
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        tasks = list(result.scalars().all())
+        await self._ensure_public_ids(tasks, persist=False)
+        return tasks
 
     async def get_live_status(self) -> dict[str, Any]:
         """生成兼容舊 live_status.json 格式的全局狀態。"""
@@ -428,10 +643,11 @@ class TaskService:
         completed_tasks = {}
         for t in tasks:
             d = t.to_dict()
+            task_key = d["task_id"]
             if t.state in TERMINAL_STATES:
-                completed_tasks[str(t.task_id)] = d
+                completed_tasks[task_key] = d
             else:
-                active_tasks[str(t.task_id)] = d
+                active_tasks[task_key] = d
         return {
             "tasks": active_tasks,
             "completed_tasks": completed_tasks,
@@ -447,8 +663,10 @@ class TaskService:
 
     # ── 內部 ──
 
-    async def _get_task(self, task_id: uuid.UUID) -> Task:
-        task = await self.db.get(Task, task_id)
+    async def _get_task(self, task_id: str | uuid.UUID) -> Task:
+        task_uuid = await self._resolve_task_uuid(task_id)
+        task = await self.db.get(Task, task_uuid)
         if task is None:
             raise ValueError(f"Task not found: {task_id}")
+        await self._ensure_public_ids([task], persist=False)
         return task

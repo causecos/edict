@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import enum
+import re
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import Boolean, Column, DateTime, Enum, Index, String, Text
@@ -97,6 +98,33 @@ STATE_ORG_MAP = {
     TaskState.Pending: "中書省",
 }
 
+FORMAL_TASK_ID_PREFIX = "JJC"
+FORMAL_TASK_ID_RE = re.compile(r"^JJC-(\d{8})-(\d{3})$", re.I)
+
+
+def task_public_id_from_meta(meta: Any) -> str:
+    """從 meta 取對外任務 ID。"""
+    if not isinstance(meta, dict):
+        return ""
+    return str(meta.get("legacy_id") or meta.get("public_id") or "").strip()
+
+
+def format_public_task_id(task_day: date | datetime, sequence: int) -> str:
+    """格式化正式旨意 ID：JJC-YYYYMMDD-NNN。"""
+    if isinstance(task_day, datetime):
+        if task_day.tzinfo is None:
+            task_day = task_day.replace(tzinfo=timezone.utc)
+        task_day = task_day.astimezone(timezone.utc).date()
+    return f"{FORMAL_TASK_ID_PREFIX}-{task_day.strftime('%Y%m%d')}-{sequence:03d}"
+
+
+def parse_public_task_id(task_ref: str) -> tuple[date, int] | None:
+    """解析正式旨意 ID；非正式 prefix（TEST/JJC-TEST/...）返回 None。"""
+    matched = FORMAL_TASK_ID_RE.fullmatch(str(task_ref or "").strip())
+    if not matched:
+        return None
+    return datetime.strptime(matched.group(1), "%Y%m%d").date(), int(matched.group(2))
+
 
 class Task(Base):
     """三省六部任務表。
@@ -188,13 +216,15 @@ class Task(Base):
         state_value = self.state.value if isinstance(self.state, TaskState) else str(self.state or "")
         meta = self.meta or {}
         scheduler = self.scheduler or {}
-        task_id = str(self.task_id) if self.task_id else ""
+        task_uuid = str(self.task_id) if getattr(self, "task_id", None) is not None else ""
+        task_id = task_public_id_from_meta(meta) or task_uuid
         updated_at = self.updated_at.isoformat() if self.updated_at else ""
         # 輸出優先取 output 欄位，fallback 到 meta.output
         legacy_output = self.output or meta.get("output") or meta.get("legacy_output", "")
 
         return {
             "task_id": task_id,
+            "uuid_task_id": task_uuid,
             "trace_id": self.trace_id,
             "title": self.title,
             "description": self.description,

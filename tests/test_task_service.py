@@ -25,6 +25,7 @@ from edict.backend.app.models.task import (
     TERMINAL_STATES,
     Task,
     TaskState,
+    format_public_task_id,
 )
 from edict.backend.app.services.task_service import TaskService
 
@@ -37,6 +38,15 @@ from edict.backend.app.services.task_service import TaskService
 def make_fake_task(**overrides) -> Task:
     """建立用於測試的 Task 實例（不經資料庫）。"""
     task_id = overrides.pop("task_id", uuid.uuid4())
+    created_at = overrides.pop("created_at", datetime(2025, 1, 1))
+    updated_at = overrides.pop("updated_at", datetime(2025, 1, 1))
+    meta = {"legacy_id": format_public_task_id(created_at, 1)}
+    meta_override = overrides.pop("meta", {})
+    if isinstance(meta_override, dict):
+        meta.update(meta_override)
+    else:
+        meta = meta_override
+
     task = Task()
     task.task_id = task_id
     task.trace_id = str(uuid.uuid4())
@@ -47,7 +57,7 @@ def make_fake_task(**overrides) -> Task:
     task.assignee_org = overrides.pop("assignee_org", None)
     task.creator = overrides.pop("creator", "emperor")
     task.tags = overrides.pop("tags", [])
-    task.meta = overrides.pop("meta", {})
+    task.meta = meta
     task.org = overrides.pop("org", "太子")
     task.official = overrides.pop("official", "")
     task.now = overrides.pop("now", "")
@@ -61,8 +71,8 @@ def make_fake_task(**overrides) -> Task:
     task.template_params = overrides.pop("template_params", {})
     task.ac = overrides.pop("ac", "")
     task.target_dept = overrides.pop("target_dept", "")
-    task.created_at = overrides.pop("created_at", datetime(2025, 1, 1))
-    task.updated_at = overrides.pop("updated_at", datetime(2025, 1, 1))
+    task.created_at = created_at
+    task.updated_at = updated_at
     task.archived = overrides.pop("archived", False)
     # 任何剩餘的 overrides
     for k, v in overrides.items():
@@ -73,21 +83,36 @@ def make_fake_task(**overrides) -> Task:
 def make_mock_db() -> AsyncMock:
     """建立模擬的 AsyncSession。"""
     db = AsyncMock()
-    db.add = MagicMock()
-    db.flush = AsyncMock()
+    added_objects = []
+
+    def _add(obj):
+        added_objects.append(obj)
+
+    async def _flush():
+        for obj in added_objects:
+            if isinstance(obj, Task) and not getattr(obj, "task_id", None):
+                obj.task_id = uuid.uuid4()
+
+    db.add = MagicMock(side_effect=_add)
+    db.flush = AsyncMock(side_effect=_flush)
     db.commit = AsyncMock()
-    db.execute = AsyncMock()
+    db.execute = AsyncMock(return_value=make_mock_execute_result([]))
     db.get = AsyncMock()
     return db
 
 
 def make_mock_execute_result(return_value):
     """建立模擬 execute() 的回傳物件，支援 .scalar_one_or_none() 與 .scalars().all()。"""
+    first_value = return_value[0] if isinstance(return_value, list) and return_value else return_value
+    all_values = return_value if isinstance(return_value, list) else ([] if return_value is None else [return_value])
+
     mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = return_value
+    mock_result.scalar_one_or_none.return_value = first_value
+    mock_result.scalar_one.return_value = first_value
 
     mock_scalars = MagicMock()
-    mock_scalars.all.return_value = return_value if isinstance(return_value, list) else [return_value]
+    mock_scalars.all.return_value = all_values
+    mock_scalars.first.return_value = first_value
     mock_result.scalars.return_value = mock_scalars
 
     return mock_result
@@ -211,7 +236,26 @@ class TestCreateTask:
         )
 
         assert task.tags == ["urgent", "bug"]
-        assert task.meta == {"source": "api", "version": 1}
+        assert task.meta["source"] == "api"
+        assert task.meta["version"] == 1
+        assert task.meta["legacy_id"].startswith("JJC-")
+
+    @pytest.mark.asyncio
+    async def test_create_task_assigns_formal_jjc_public_id(self):
+        """
+        given: 新建立的正式任務
+        when: create_task 完成後讀取 meta / to_dict
+        then: 對外 task_id 應為 JJC-YYYYMMDD-NNN，內部 UUID 仍保留在 uuid_task_id
+        """
+        db = make_mock_db()
+        svc = TaskService(db)
+
+        task = await svc.create_task(title="正式任務")
+        payload = task.to_dict()
+
+        assert payload["task_id"].startswith("JJC-")
+        uuid.UUID(payload["uuid_task_id"])
+        assert payload["uuid_task_id"] == str(task.task_id)
 
 
 # ─────────────────────────────────────────────
@@ -510,6 +554,24 @@ class TestGetTask:
         with pytest.raises(ValueError, match="Task not found"):
             await svc.get_task(uuid.uuid4())
 
+    @pytest.mark.asyncio
+    async def test_get_task_accepts_legacy_prefixed_public_id(self):
+        """
+        given: 既有非正式 prefix 任務（例如 TEST-*）保存在 legacy_id
+        when: 用對外 public id 查詢 get_task
+        then: 仍能解析回內部 UUID 並取得任務
+        """
+        task = make_fake_task(meta={"legacy_id": "TEST-20260605-001"})
+        db = make_mock_db()
+        db.execute.return_value = make_mock_execute_result([task])
+        db.get = AsyncMock(return_value=task)
+        svc = TaskService(db)
+
+        result = await svc.get_task("TEST-20260605-001")
+
+        assert result is task
+        db.get.assert_awaited_once_with(Task, task.task_id)
+
 
 # ─────────────────────────────────────────────
 # add_progress
@@ -658,7 +720,8 @@ class TestDispatchSnapshot:
         task = make_fake_task(title="快照任務", description="快照描述")
         snapshot = TaskService._dispatch_snapshot(task, message="自訂訊息")
 
-        assert snapshot["task_id"] == str(task.task_id)
+        assert snapshot["task_id"] == task.meta["legacy_id"]
+        assert snapshot["uuid_task_id"] == str(task.task_id)
         assert snapshot["title"] == "快照任務"
         assert snapshot["description"] == "快照描述"
         assert snapshot["state"] == "Taizi"

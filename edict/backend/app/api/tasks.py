@@ -48,6 +48,14 @@ class TaskSchedulerUpdate(BaseModel):
     scheduler: dict
 
 
+class TaskDashboardPatch(BaseModel):
+    fields: dict = Field(default_factory=dict)
+    flow_entry: dict | None = None
+    progress_entry: dict | None = None
+    meta_updates: dict | None = None
+    producer: str = "dashboard"
+
+
 class TaskOut(BaseModel):
     task_id: str
     uuid_task_id: str
@@ -254,5 +262,26 @@ async def update_scheduler(
     try:
         await svc.update_scheduler(task_id, body.scheduler)
         return {"message": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/{task_id}/dashboard", dependencies=[Depends(require_api_key)])
+async def patch_dashboard_task(
+    task_id: str,
+    body: TaskDashboardPatch,
+    svc: TaskService = Depends(get_task_service),
+):
+    """Dashboard 專用兼容補丁：統一更新 legacy 欄位 / scheduler / meta / flow / progress。"""
+    try:
+        task = await svc.patch_dashboard_fields(
+            task_id,
+            fields=body.fields,
+            flow_entry=body.flow_entry,
+            progress_entry=body.progress_entry,
+            meta_updates=body.meta_updates,
+            producer=body.producer,
+        )
+        return task.to_dict()
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

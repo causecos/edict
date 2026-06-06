@@ -219,6 +219,8 @@ class Task(Base):
         task_uuid = str(self.task_id) if getattr(self, "task_id", None) is not None else ""
         task_id = task_public_id_from_meta(meta) or task_uuid
         updated_at = self.updated_at.isoformat() if self.updated_at else ""
+        review_round = int(meta.get("review_round") or 0)
+        prev_state = str(meta.get("_prev_state") or "")
         # 輸出優先取 output 欄位，fallback 到 meta.output
         legacy_output = self.output or meta.get("output") or meta.get("legacy_output", "")
 
@@ -249,6 +251,8 @@ class Task(Base):
             "block": self.block,
             "output": legacy_output,
             "archived": self.archived,
+            "review_round": review_round,
+            "_prev_state": prev_state,
             "templateId": self.template_id,
             "templateParams": self.template_params or {},
             "ac": self.ac,

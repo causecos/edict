@@ -37,6 +37,11 @@ def _setup_server(monkeypatch, tmp_path, tasks=None):
     monkeypatch.setattr(srv, '_ACTIVE_TASK_DATA_DIR', data_dir)
     monkeypatch.setattr(srv, 'SCRIPTS', tmp_path / 'scripts')  # avoid real scripts
     monkeypatch.setattr(srv, '_check_gateway_alive', lambda: False)  # no real dispatch
+    monkeypatch.setattr(
+        srv,
+        '_load_task_source_mode',
+        lambda: {'mode': 'json', 'backendApiBase': 'http://127.0.0.1:8000', 'timeoutMs': 5000},
+    )
     # Suppress refresh subprocess
     monkeypatch.setattr(srv, '_trigger_refresh', lambda: None)
 
